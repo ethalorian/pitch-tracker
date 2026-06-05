@@ -13,8 +13,10 @@ import { LogOut, RefreshCw, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import NewGameSetup, { type GameSetup } from "@/components/new-game-setup";
+import PitcherEditor from "@/components/pitcher-editor";
 import {
   createGameRow,
+  listPitchers,
   saveGameRow,
   syncTeamBatters,
 } from "@/lib/supabase/sync";
@@ -23,6 +25,7 @@ import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
 import {
   EMPTY_GAME,
   ZONES,
+  swingOf,
   uid,
   type GameState,
   type Hand,
@@ -34,6 +37,13 @@ import {
 const STORE_KEY = "fastpitch-caller-v1";
 const GAME_ID_KEY = "fastpitch-caller-game-id";
 const ck = (b: number, s: number) => `${b}-${s}`;
+
+/**
+ * Call targets: the four corners of the legacy 3×3 zone grid
+ * (hi-in, hi-away, lo-in, lo-away). Indexes are unchanged so
+ * previously logged 9-zone pitches still resolve to the right labels.
+ */
+const QUADRANTS = [0, 2, 6, 8] as const;
 
 const emptySubscribe = () => () => {};
 
@@ -72,6 +82,7 @@ export default function PitchCaller() {
   const [hIn, setHIn] = useState<Hand>("R");
   const [showSetup, setShowSetup] = useState(false);
   const [pickingPitcher, setPickingPitcher] = useState(false);
+  const [firstRun, setFirstRun] = useState(false);
 
   // true after hydration; gates rendering so SSR and first client render match
   const loaded = useSyncExternalStore(
@@ -138,6 +149,21 @@ export default function PitchCaller() {
     return () => clearTimeout(t);
   }, [game, loaded]);
 
+  // first-login onboarding: no pitchers anywhere → prompt to create one
+  const checkedFirstRunRef = useRef(false);
+  useEffect(() => {
+    if (!loaded || checkedFirstRunRef.current) return;
+    checkedFirstRunRef.current = true;
+    if (game.pitchers.length > 0 || game.pitches.length > 0) return;
+    let live = true;
+    listPitchers().then((ps) => {
+      if (live && ps.length === 0) setFirstRun(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [loaded, game.pitchers.length, game.pitches.length]);
+
   const flash = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 1100);
@@ -156,6 +182,56 @@ export default function PitchCaller() {
   const curBatter =
     game.batters.find((b) => b.id === game.currentBatterId) ?? null;
   const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
+
+  // batter intel, all night: contact (red) vs swing-and-miss (blue),
+  // per zone for the heat overlay and per type+zone combo for advice
+  const batterHeat = useMemo(() => {
+    const zones: Record<number, { contact: number; miss: number }> = {};
+    const combos: Record<
+      string,
+      { contact: number; miss: number; type: string; zone: number }
+    > = {};
+    if (!game.currentBatterId) return { zones, combos };
+    for (const p of game.pitches) {
+      if (p.batterId !== game.currentBatterId) continue;
+      const sw = swingOf(p.outcome);
+      if (sw !== "contact" && sw !== "miss") continue;
+      zones[p.zone] = zones[p.zone] ?? { contact: 0, miss: 0 };
+      zones[p.zone][sw]++;
+      const k = `${p.type}|${p.zone}`;
+      combos[k] = combos[k] ?? { contact: 0, miss: 0, type: p.type, zone: p.zone };
+      combos[k][sw]++;
+    }
+    return { zones, combos };
+  }, [game.pitches, game.currentBatterId]);
+
+  const advice = useMemo(() => {
+    const list = Object.values(batterHeat.combos);
+    let avoid: (typeof list)[number] | null = null;
+    let throwRec: (typeof list)[number] | null = null;
+    for (const c of list) {
+      // she's hitting it there → stay away
+      if (c.contact > 0 && (!avoid || c.contact > avoid.contact)) avoid = c;
+      // she's swinging through it there → go back to it
+      if (
+        c.miss > c.contact &&
+        (!throwRec || c.miss - c.contact > throwRec.miss - throwRec.contact)
+      )
+        throwRec = c;
+    }
+    return { avoid, throwRec };
+  }, [batterHeat]);
+
+  /** zone heat → background: red = contact, blue = whiffs, deeper = more */
+  const zoneBg = (zone: number): string | undefined => {
+    const h = batterHeat.zones[zone];
+    if (!h) return undefined;
+    const alpha = (n: number) => 0.18 + Math.min(n, 4) * 0.12;
+    if (h.contact >= h.miss && h.contact > 0)
+      return `rgba(239, 68, 68, ${alpha(h.contact)})`;
+    if (h.miss > 0) return `rgba(59, 130, 246, ${alpha(h.miss)})`;
+    return undefined;
+  };
 
   /* ── actions ── */
   const bringUp = (batterId: string) =>
@@ -257,7 +333,7 @@ export default function PitchCaller() {
       if (o === "ball") {
         b++;
         if (b >= 4) ended = "BB";
-      } else if (o === "strike") {
+      } else if (o === "called" || o === "miss" || o === "strike") {
         s++;
         if (s >= 3) ended = "K";
       } else if (o === "foul") {
@@ -315,6 +391,37 @@ export default function PitchCaller() {
     return (
       <div className="mx-auto w-full max-w-[480px] p-10 text-center text-muted-foreground">
         loading…
+      </div>
+    );
+  }
+
+  // first login: create a pitcher before anything else
+  if (firstRun) {
+    return (
+      <div className="mx-auto w-full max-w-[480px] px-4 pb-24 font-sans">
+        <div className="flex items-center justify-between py-4">
+          <div className="text-lg font-bold tracking-wide">
+            PITCH
+            <span className="text-amber-600 dark:text-amber-400">CALL</span>
+          </div>
+          <ThemeToggle />
+        </div>
+        <div className="mb-4 rounded-xl border bg-card p-4">
+          <div className="mb-1 text-lg font-bold">Welcome, Coach.</div>
+          <p className="text-sm text-muted-foreground">
+            Start by setting up your first pitcher — her repertoire becomes
+            the pitch buttons you&apos;ll tap during games. You can add more
+            pitchers later on the coach screen.
+          </p>
+        </div>
+        <PitcherEditor
+          initial={null}
+          title="YOUR FIRST PITCHER"
+          onSaved={() => {
+            setFirstRun(false);
+            setShowSetup(true);
+          }}
+        />
       </div>
     );
   }
@@ -529,6 +636,31 @@ export default function PitchCaller() {
             </div>
           )}
 
+          {/* predictive read on this batter, from her swings tonight */}
+          {curBatter && (advice.throwRec || advice.avoid) && (
+            <div className="mb-2.5 flex flex-col gap-1.5">
+              {advice.throwRec && (
+                <div className="rounded-xl border border-blue-500 bg-blue-500/10 px-3.5 py-2 text-sm font-bold tracking-wide text-blue-600 dark:text-blue-400">
+                  THROW: {advice.throwRec.type} ·{" "}
+                  {ZONES[advice.throwRec.zone].toUpperCase()}
+                  <span className="ml-2 text-xs font-normal opacity-70">
+                    {advice.throwRec.miss} whiff
+                    {advice.throwRec.miss > 1 ? "s" : ""}
+                  </span>
+                </div>
+              )}
+              {advice.avoid && (
+                <div className="rounded-xl border border-red-500 bg-red-500/10 px-3.5 py-2 text-sm font-bold tracking-wide text-red-600 dark:text-red-400">
+                  STAY AWAY: {advice.avoid.type} ·{" "}
+                  {ZONES[advice.avoid.zone].toUpperCase()}
+                  <span className="ml-2 text-xs font-normal opacity-70">
+                    contact ×{advice.avoid.contact}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* pitch types — adapts to the current pitcher's repertoire */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
             <span>① PITCH</span>
@@ -564,26 +696,28 @@ export default function PitchCaller() {
             })}
           </div>
 
-          {/* location */}
+          {/* location — four quadrants, no middle: you don't call meatballs */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
             <span>② LOCATION</span>
             <span className="opacity-60">relative to batter</span>
           </div>
-          <div className="mb-3.5 grid grid-cols-3 gap-1.5">
-            {ZONES.map((z, i) => {
+          <div className="mb-3.5 grid grid-cols-2 gap-1.5">
+            {QUADRANTS.map((i) => {
               const on = game.pending.zone === i;
+              const bg = on ? undefined : zoneBg(i);
               return (
                 <button
                   key={i}
                   onClick={() => pickZone(i)}
                   className={cn(
-                    "rounded-xl border-2 py-5 text-[13px] font-semibold uppercase tracking-wide",
+                    "rounded-xl border-2 py-7 text-[14px] font-semibold uppercase tracking-wide",
                     on
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      : "border-border bg-card text-muted-foreground hover:bg-accent"
+                      : "border-border bg-card text-foreground/80 hover:brightness-110"
                   )}
+                  style={bg ? { background: bg } : undefined}
                 >
-                  {z}
+                  {ZONES[i]}
                 </button>
               );
             })}
@@ -594,11 +728,12 @@ export default function PitchCaller() {
             <span>③ RESULT</span>
             <span className="opacity-60">advances the count</span>
           </div>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             {(
               [
                 ["ball", "BALL"],
-                ["strike", "STRIKE"],
+                ["called", "CALLED"],
+                ["miss", "MISS"],
                 ["foul", "FOUL"],
                 ["inplay", "IN PLAY"],
               ] as const
@@ -608,7 +743,7 @@ export default function PitchCaller() {
                 onClick={() => outcome(o)}
                 disabled={!curBatter}
                 className={cn(
-                  "rounded-xl border bg-card py-3.5 text-[13px] font-bold tracking-wide text-card-foreground hover:bg-accent disabled:opacity-40",
+                  "rounded-xl border bg-card py-3.5 text-[11px] font-bold tracking-wide text-card-foreground hover:bg-accent disabled:opacity-40",
                   curAbPitches.some((p) => !p.outcome) && "animate-pulse-glow"
                 )}
               >
@@ -622,13 +757,7 @@ export default function PitchCaller() {
             <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
               THIS AT-BAT
             </div>
-            <Strip
-              pitches={curAbPitches}
-              all={game.pitches.filter(
-                (p) => p.batterId === game.currentBatterId
-              )}
-              defs={defMap}
-            />
+            <Strip pitches={curAbPitches} defs={defMap} />
           </div>
         </div>
       )}
@@ -660,26 +789,17 @@ export default function PitchCaller() {
   );
 }
 
-/* ───────── sequence strip with repeat-detection (the predictability mirror) ───────── */
-function Strip({
-  pitches,
-  all,
-  defs,
-}: {
-  pitches: Pitch[];
-  all?: Pitch[];
-  defs: PitchDef[];
-}) {
-  // a call is a "repeat" if same type+zone+count seen earlier for this batter
-  const seen: Record<string, number> = {};
-  const flagged = (all ?? pitches).map((p) => {
-    const key = `${p.type}|${p.zone}|${p.b}-${p.s}`;
-    const rep = !!seen[key];
-    seen[key] = (seen[key] || 0) + 1;
-    return { id: p.id, rep };
-  });
-  const repMap = Object.fromEntries(flagged.map((f) => [f.id, f.rep]));
+/* ───────── sequence strip: the calls, in order, with swing results ───────── */
+const OUTCOME_LABEL: Record<string, string> = {
+  ball: "B",
+  strike: "S",
+  called: "ꓘ",
+  miss: "W",
+  foul: "F",
+  inplay: "IP",
+};
 
+function Strip({ pitches, defs }: { pitches: Pitch[]; defs: PitchDef[] }) {
   if (!pitches.length) {
     return (
       <div className="px-0.5 py-1.5 text-sm text-muted-foreground/60">
@@ -690,20 +810,13 @@ function Strip({
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {pitches.map((p, i) => {
+      {pitches.map((p) => {
         const c = pitchDef(defs, p.type).c;
-        const back =
-          i > 0 &&
-          pitches[i - 1].type === p.type &&
-          pitches[i - 1].zone === p.zone;
-        const warn = repMap[p.id] || back;
+        const sw = swingOf(p.outcome);
         return (
           <div
             key={p.id}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border bg-card px-2 py-1 font-mono text-xs",
-              warn ? "border-red-500" : "border-border"
-            )}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs"
           >
             <span className="text-muted-foreground">
               {p.b}-{p.s}
@@ -713,13 +826,15 @@ function Strip({
             </span>
             <span className="text-card-foreground/80">{ZONES[p.zone]}</span>
             {p.outcome && (
-              <span className="text-[10px] text-muted-foreground/60">
-                {p.outcome[0].toUpperCase()}
-              </span>
-            )}
-            {warn && (
-              <span className="text-[11px] text-red-600 dark:text-red-400">
-                ⟲
+              <span
+                className={cn(
+                  "text-[10px] font-bold",
+                  sw === "contact" && "text-red-600 dark:text-red-400",
+                  sw === "miss" && "text-blue-600 dark:text-blue-400",
+                  sw === "none" && "text-muted-foreground/60"
+                )}
+              >
+                {OUTCOME_LABEL[p.outcome] ?? p.outcome[0].toUpperCase()}
               </span>
             )}
           </div>
@@ -746,15 +861,21 @@ function BatterView({
   const mine = game.pitches.filter((p) => p.batterId === id);
   const abs = [...new Set(mine.map((p) => p.ab))];
 
-  // repeats: type+zone+count keys hit 2+ times
-  const counts: Record<string, number> = {};
+  // swing profile: what she's hit vs swung through, by call
+  const combos: Record<string, { contact: number; miss: number }> = {};
   mine.forEach((p) => {
-    const k = `${p.type} ${ZONES[p.zone]} in ${p.b}-${p.s}`;
-    counts[k] = (counts[k] || 0) + 1;
+    const sw = swingOf(p.outcome);
+    if (sw !== "contact" && sw !== "miss") return;
+    const k = `${p.type} ${ZONES[p.zone]}`;
+    combos[k] = combos[k] ?? { contact: 0, miss: 0 };
+    combos[k][sw]++;
   });
-  const repeats = Object.entries(counts)
-    .filter(([, n]) => n > 1)
-    .sort((a, b) => b[1] - a[1]);
+  const hits = Object.entries(combos)
+    .filter(([, v]) => v.contact > 0)
+    .sort((a, b) => b[1].contact - a[1].contact);
+  const whiffs = Object.entries(combos)
+    .filter(([, v]) => v.miss > 0 && v.miss >= v.contact)
+    .sort((a, b) => b[1].miss - a[1].miss);
 
   return (
     <div className="px-3.5 py-2">
@@ -792,22 +913,46 @@ function BatterView({
             </span>
           </div>
 
-          {repeats.length > 0 && (
-            <div className="mb-3.5 mt-2 rounded-xl border border-red-500 bg-card px-3.5 py-2.5">
-              <div className="mb-1.5 text-[13px] font-bold tracking-widest text-red-600 dark:text-red-400">
-                ⟲ YOU&apos;VE REPEATED ON HER
-              </div>
-              {repeats.map(([k, n]) => (
-                <div
-                  key={k}
-                  className="py-0.5 font-mono text-[13px] text-card-foreground"
-                >
-                  <span className="text-amber-600 dark:text-amber-400">
-                    {n}×
-                  </span>{" "}
-                  {k}
+          {(hits.length > 0 || whiffs.length > 0) && (
+            <div className="mb-3.5 mt-2 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-red-500/60 bg-card px-3 py-2.5">
+                <div className="mb-1.5 text-[11px] font-bold tracking-widest text-red-600 dark:text-red-400">
+                  SHE&apos;S ON THESE
                 </div>
-              ))}
+                {hits.length ? (
+                  hits.map(([k, v]) => (
+                    <div key={k} className="py-0.5 font-mono text-xs">
+                      <span className="text-red-600 dark:text-red-400">
+                        {v.contact}×
+                      </span>{" "}
+                      {k}
+                    </div>
+                  ))
+                ) : (
+                  <div className="font-mono text-xs text-muted-foreground/60">
+                    no contact yet
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl border border-blue-500/60 bg-card px-3 py-2.5">
+                <div className="mb-1.5 text-[11px] font-bold tracking-widest text-blue-600 dark:text-blue-400">
+                  SHE&apos;S MISSING
+                </div>
+                {whiffs.length ? (
+                  whiffs.map(([k, v]) => (
+                    <div key={k} className="py-0.5 font-mono text-xs">
+                      <span className="text-blue-600 dark:text-blue-400">
+                        {v.miss}×
+                      </span>{" "}
+                      {k}
+                    </div>
+                  ))
+                ) : (
+                  <div className="font-mono text-xs text-muted-foreground/60">
+                    no whiffs yet
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -824,7 +969,7 @@ function BatterView({
                     </span>
                   )}
                 </div>
-                <Strip pitches={ps} all={mine} defs={defs} />
+                <Strip pitches={ps} defs={defs} />
               </div>
             );
           })}

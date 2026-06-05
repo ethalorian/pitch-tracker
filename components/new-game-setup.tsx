@@ -54,13 +54,16 @@ export default function NewGameSetup({
       setError("Pick a starting pitcher.");
       return;
     }
+    let team: Team | null = teams.find((t) => t.id === teamId) ?? null;
+    const typed = newName.trim();
+    if (!team && !typed) {
+      setError("Pick a previous opponent or enter a new team name.");
+      return;
+    }
     setError(null);
     setBusy(true);
 
-    let team: Team | null = teams.find((t) => t.id === teamId) ?? null;
     let opponentName = team?.name ?? null;
-
-    const typed = newName.trim();
     if (!team && typed) {
       // new opponent — create the team row (best effort; offline still plays)
       team = await createTeam(typed);
@@ -180,7 +183,7 @@ export default function NewGameSetup({
               placeholder={
                 teams.length
                   ? "…or type a new opponent name"
-                  : "Opponent name (optional)"
+                  : "Opponent team name (required)"
               }
               className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-[15px] outline-none focus:border-amber-500"
             />

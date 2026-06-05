@@ -1,8 +1,19 @@
 import type { PitchDef } from "./catalog";
 
 export type Hand = "R" | "L";
-export type Outcome = "ball" | "strike" | "foul" | "inplay";
+/** "strike" is legacy (pre swing-tracking); UI now logs "called" or "miss" */
+export type Outcome = "ball" | "strike" | "called" | "miss" | "foul" | "inplay";
 export type AbEnd = "BB" | "K" | "IP";
+
+export type Swing = "contact" | "miss" | "none";
+
+/** Classify an outcome by what the batter's bat did. */
+export function swingOf(o: Outcome | null): Swing | null {
+  if (o === "foul" || o === "inplay") return "contact";
+  if (o === "miss") return "miss";
+  if (o === "ball" || o === "called") return "none";
+  return null; // legacy "strike" or unlogged: swing unknown
+}
 
 export interface Batter {
   id: string;
