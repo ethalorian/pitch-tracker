@@ -7,6 +7,25 @@ export type AbEnd = "BB" | "K" | "IP";
 
 export type Swing = "contact" | "miss" | "none";
 
+export type ContactQuality = "hard" | "weak";
+
+/** Where an in-play ball went: outfield L/C/R, infield L/M/R. */
+export type FieldZone = "lf" | "cf" | "rf" | "if-l" | "if-m" | "if-r";
+
+export const FIELD_LABEL: Record<FieldZone, string> = {
+  lf: "LF",
+  cf: "CF",
+  rf: "RF",
+  "if-l": "IF-L",
+  "if-m": "IF-M",
+  "if-r": "IF-R",
+};
+
+export interface ContactDetail {
+  quality: ContactQuality;
+  field: FieldZone;
+}
+
 /** Classify an outcome by what the batter's bat did. */
 export function swingOf(o: Outcome | null): Swing | null {
   if (o === "foul" || o === "inplay") return "contact";
@@ -46,6 +65,8 @@ export interface Pitch {
   b: number;
   s: number;
   outcome: Outcome | null;
+  /** filled by the post-IN-PLAY panel; absent on fouls/legacy pitches */
+  contact?: ContactDetail;
   ts: number;
 }
 

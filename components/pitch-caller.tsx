@@ -24,9 +24,12 @@ import { getSupabase } from "@/lib/supabase/client";
 import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
 import {
   EMPTY_GAME,
+  FIELD_LABEL,
   ZONES,
   swingOf,
   uid,
+  type ContactQuality,
+  type FieldZone,
   type GameState,
   type Hand,
   type Outcome,
@@ -83,6 +86,11 @@ export default function PitchCaller() {
   const [showSetup, setShowSetup] = useState(false);
   const [pickingPitcher, setPickingPitcher] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
+  // post-IN-PLAY contact panel: which pitch is awaiting detail
+  const [contactFor, setContactFor] = useState<string | null>(null);
+  const [contactQuality, setContactQuality] = useState<ContactQuality | null>(
+    null
+  );
 
   // true after hydration; gates rendering so SSR and first client render match
   const loaded = useSyncExternalStore(
@@ -196,11 +204,13 @@ export default function PitchCaller() {
       if (p.batterId !== game.currentBatterId) continue;
       const sw = swingOf(p.outcome);
       if (sw !== "contact" && sw !== "miss") continue;
+      // hard contact counts double — squared-up matters more than a dribbler
+      const w = sw === "contact" && p.contact?.quality === "hard" ? 2 : 1;
       zones[p.zone] = zones[p.zone] ?? { contact: 0, miss: 0 };
-      zones[p.zone][sw]++;
+      zones[p.zone][sw] += w;
       const k = `${p.type}|${p.zone}`;
       combos[k] = combos[k] ?? { contact: 0, miss: 0, type: p.type, zone: p.zone };
-      combos[k][sw]++;
+      combos[k][sw] += w;
     }
     return { zones, combos };
   }, [game.pitches, game.currentBatterId]);
@@ -350,6 +360,27 @@ export default function PitchCaller() {
         abOver: false,
       };
     });
+    if (o === "inplay") {
+      // AB is over — dead time. Ask hard/weak + where it went.
+      setContactQuality(null);
+      setContactFor("last");
+    }
+  };
+
+  const tagContact = (quality: ContactQuality, field: FieldZone) => {
+    setGame((g) => {
+      const pitches = [...g.pitches];
+      for (let i = pitches.length - 1; i >= 0; i--) {
+        if (pitches[i].outcome === "inplay") {
+          pitches[i] = { ...pitches[i], contact: { quality, field } };
+          break;
+        }
+      }
+      return { ...g, pitches };
+    });
+    setContactFor(null);
+    setContactQuality(null);
+    flash(`${quality.toUpperCase()} · ${FIELD_LABEL[field]}`);
   };
 
   const startGame = (setup: GameSetup) => {
@@ -423,7 +454,7 @@ export default function PitchCaller() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-[480px] pb-24 font-sans">
+    <div className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[1100px] xl:max-w-[1440px]">
       {/* header */}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3.5 py-3">
         <div className="text-lg font-bold tracking-wide">
@@ -514,8 +545,8 @@ export default function PitchCaller() {
         </div>
       )}
 
-      {/* tabs */}
-      <div className="flex gap-1.5 px-3.5 pb-1 pt-2.5">
+      {/* tabs — phone only; iPad+ shows all panels at once */}
+      <div className="flex gap-1.5 px-3.5 pb-1 pt-2.5 md:hidden">
         {(
           [
             ["call", "CALL"],
@@ -542,7 +573,14 @@ export default function PitchCaller() {
         ))}
       </div>
 
-      {tab === "call" && (
+      {/* data-rich layout: phone = tabbed, md+ = call | batter | tendencies */}
+      <div className="md:grid md:grid-cols-[minmax(400px,480px)_minmax(0,1fr)] md:items-start md:gap-5 md:px-4 md:pt-3">
+        <section
+          className={cn(
+            tab !== "call" && "hidden",
+            "md:block md:rounded-xl md:border md:bg-card/30 md:py-1"
+          )}
+        >
         <div className="px-3.5 py-2">
           {/* roster */}
           <div className="flex gap-1.5 overflow-x-auto pb-2.5 pt-1">
@@ -758,18 +796,39 @@ export default function PitchCaller() {
             <Strip pitches={curAbPitches} defs={defMap} />
           </div>
         </div>
-      )}
+        </section>
 
-      {tab === "batter" && (
-        <BatterView
-          game={game}
-          viewBatter={viewBatter}
-          setViewBatter={setViewBatter}
-          defs={defMap}
-        />
-      )}
+        <div className="md:flex md:flex-col md:gap-5 xl:grid xl:grid-cols-2 xl:items-start">
+          <section
+            className={cn(
+              tab !== "batter" && "hidden",
+              "md:block md:rounded-xl md:border md:bg-card/30"
+            )}
+          >
+            <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
+              BATTER
+            </div>
+            <BatterView
+              game={game}
+              viewBatter={viewBatter}
+              setViewBatter={setViewBatter}
+              defs={defMap}
+            />
+          </section>
 
-      {tab === "game" && <GameView game={game} defs={defMap} />}
+          <section
+            className={cn(
+              tab !== "game" && "hidden",
+              "md:block md:rounded-xl md:border md:bg-card/30"
+            )}
+          >
+            <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
+              GAME TENDENCIES
+            </div>
+            <GameView game={game} defs={defMap} />
+          </section>
+        </div>
+      </div>
 
       {showSetup && (
         <NewGameSetup
@@ -778,12 +837,98 @@ export default function PitchCaller() {
         />
       )}
 
+      {/* post-IN-PLAY contact detail: hard/weak, then where it went */}
+      {contactFor && (
+        <div className="fixed inset-0 z-30 flex items-end justify-center bg-background/80 p-4 pb-10 backdrop-blur-sm">
+          <div className="w-full max-w-[440px] rounded-xl border bg-card p-4">
+            <div className="mb-2.5 flex items-center justify-between">
+              <div className="text-xs font-bold tracking-widest text-amber-600 dark:text-amber-400">
+                BALL IN PLAY — HOW &amp; WHERE?
+              </div>
+              <button
+                onClick={() => {
+                  setContactFor(null);
+                  setContactQuality(null);
+                }}
+                className="rounded-lg border px-2 py-1 text-[11px] tracking-widest text-muted-foreground hover:bg-accent"
+              >
+                SKIP
+              </button>
+            </div>
+
+            <div className="mb-2.5 grid grid-cols-2 gap-1.5">
+              {(["hard", "weak"] as const).map((q) => (
+                <button
+                  key={q}
+                  onClick={() => setContactQuality(q)}
+                  className={cn(
+                    "rounded-xl border-2 py-4 text-base font-bold tracking-wide",
+                    contactQuality === q
+                      ? q === "hard"
+                        ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
+                        : "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  {q.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* field: outfield row above infield row, like the field itself */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {(["lf", "cf", "rf"] as const).map((f) => (
+                <FieldButton
+                  key={f}
+                  f={f}
+                  disabled={!contactQuality}
+                  onPick={() => contactQuality && tagContact(contactQuality, f)}
+                />
+              ))}
+              {(["if-l", "if-m", "if-r"] as const).map((f) => (
+                <FieldButton
+                  key={f}
+                  f={f}
+                  disabled={!contactQuality}
+                  onPick={() => contactQuality && tagContact(contactQuality, f)}
+                />
+              ))}
+            </div>
+            {!contactQuality && (
+              <div className="mt-2 text-center text-xs text-muted-foreground">
+                pick HARD or WEAK first
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="animate-pop fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-2 text-[15px] font-bold tracking-wide text-black shadow-lg">
           {toast}
         </div>
       )}
     </div>
+  );
+}
+
+function FieldButton({
+  f,
+  disabled,
+  onPick,
+}: {
+  f: FieldZone;
+  disabled: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      onClick={onPick}
+      disabled={disabled}
+      className="rounded-xl border-2 border-border bg-background py-4 text-sm font-bold tracking-wide text-foreground/80 hover:bg-accent disabled:opacity-35"
+    >
+      {FIELD_LABEL[f]}
+    </button>
   );
 }
 
@@ -860,20 +1005,29 @@ function BatterView({
   const abs = [...new Set(mine.map((p) => p.ab))];
 
   // swing profile: what she's hit vs swung through, by call
-  const combos: Record<string, { contact: number; miss: number }> = {};
+  const combos: Record<string, { contact: number; miss: number; hard: number }> =
+    {};
+  const spray: Partial<Record<FieldZone, number>> = {};
   mine.forEach((p) => {
     const sw = swingOf(p.outcome);
     if (sw !== "contact" && sw !== "miss") return;
     const k = `${p.type} ${ZONES[p.zone]}`;
-    combos[k] = combos[k] ?? { contact: 0, miss: 0 };
+    combos[k] = combos[k] ?? { contact: 0, miss: 0, hard: 0 };
     combos[k][sw]++;
+    if (p.contact) {
+      if (p.contact.quality === "hard") combos[k].hard++;
+      spray[p.contact.field] = (spray[p.contact.field] ?? 0) + 1;
+    }
   });
   const hits = Object.entries(combos)
     .filter(([, v]) => v.contact > 0)
-    .sort((a, b) => b[1].contact - a[1].contact);
+    .sort((a, b) => b[1].hard - a[1].hard || b[1].contact - a[1].contact);
   const whiffs = Object.entries(combos)
     .filter(([, v]) => v.miss > 0 && v.miss >= v.contact)
     .sort((a, b) => b[1].miss - a[1].miss);
+  const sprayList = (Object.entries(spray) as [FieldZone, number][]).sort(
+    (a, b) => b[1] - a[1]
+  );
 
   return (
     <div className="px-3.5 py-2">
@@ -924,6 +1078,11 @@ function BatterView({
                         {v.contact}×
                       </span>{" "}
                       {k}
+                      {v.hard > 0 && (
+                        <span className="ml-1 font-bold text-red-600 dark:text-red-400">
+                          ({v.hard} hard)
+                        </span>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -951,6 +1110,23 @@ function BatterView({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {sprayList.length > 0 && (
+            <div className="mb-3.5 rounded-xl border bg-card px-3 py-2 font-mono text-xs">
+              <span className="font-sans text-[11px] font-bold tracking-widest text-muted-foreground">
+                SPRAY{" "}
+              </span>
+              {sprayList.map(([f, n], i) => (
+                <span key={f}>
+                  {i > 0 && <span className="text-muted-foreground/50"> · </span>}
+                  {FIELD_LABEL[f]}
+                  <span className="text-amber-600 dark:text-amber-400">
+                    ×{n}
+                  </span>
+                </span>
+              ))}
             </div>
           )}
 
