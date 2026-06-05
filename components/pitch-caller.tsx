@@ -7,115 +7,58 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, RefreshCw, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { createGameRow, saveGameRow } from "@/lib/supabase/sync";
+import NewGameSetup, { type GameSetup } from "@/components/new-game-setup";
+import {
+  createGameRow,
+  saveGameRow,
+  syncTeamBatters,
+} from "@/lib/supabase/sync";
 import { getSupabase } from "@/lib/supabase/client";
-
-/* ───────────────────────── types ───────────────────────── */
-type Hand = "R" | "L";
-type Outcome = "ball" | "strike" | "foul" | "inplay";
-type AbEnd = "BB" | "K" | "IP";
-
-interface Batter {
-  id: string;
-  jersey: string;
-  hand: Hand;
-}
-
-interface Pitch {
-  id: string;
-  batterId: string;
-  ab: number;
-  type: PitchKey;
-  zone: number;
-  b: number;
-  s: number;
-  outcome: Outcome | null;
-  ts: number;
-}
-
-interface AbResult {
-  ab: number;
-  batterId: string;
-  result: AbEnd;
-}
-
-interface GameState {
-  batters: Batter[];
-  pitches: Pitch[];
-  abResults: AbResult[];
-  currentBatterId: string | null;
-  currentAb: number;
-  abCounter: number;
-  count: { b: number; s: number };
-  pending: { type?: PitchKey; zone?: number };
-  abOver: boolean;
-  lastLogged: string | null;
-}
-
-/* ───────────────────────── constants ───────────────────────── */
-const PITCHES = [
-  { k: "FB", name: "Fastball", c: "#ff5a3c" },
-  { k: "CH", name: "Change", c: "#22c7d6" },
-  { k: "DR", name: "Drop", c: "#36d67a" },
-  { k: "CU", name: "Curve", c: "#b06bff" },
-  { k: "SC", name: "Screw", c: "#ffc23c" },
-] as const;
-type PitchKey = (typeof PITCHES)[number]["k"];
-const PMAP = Object.fromEntries(PITCHES.map((p) => [p.k, p])) as Record<
-  PitchKey,
-  (typeof PITCHES)[number]
->;
-
-// zone 0..8, labeled relative to the batter (how a caller thinks)
-const ZONES = [
-  "hi-in",
-  "high",
-  "hi-aw",
-  "in",
-  "mid",
-  "away",
-  "lo-in",
-  "low",
-  "lo-aw",
-] as const;
+import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
+import {
+  EMPTY_GAME,
+  ZONES,
+  uid,
+  type GameState,
+  type Hand,
+  type Outcome,
+  type Pitch,
+  type Pitcher,
+} from "@/lib/types";
 
 const STORE_KEY = "fastpitch-caller-v1";
 const GAME_ID_KEY = "fastpitch-caller-game-id";
-const uid = () =>
-  Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const ck = (b: number, s: number) => `${b}-${s}`;
 
-const EMPTY: GameState = {
-  batters: [],
-  pitches: [],
-  abResults: [],
-  currentBatterId: null,
-  currentAb: 0,
-  abCounter: 0,
-  count: { b: 0, s: 0 },
-  pending: {},
-  abOver: false,
-  lastLogged: null,
-};
-
-/* ───────────────────────── component ───────────────────────── */
 const emptySubscribe = () => () => {};
 
 function loadGame(): GameState {
-  if (typeof window === "undefined") return EMPTY;
+  if (typeof window === "undefined") return EMPTY_GAME;
   try {
     const raw = window.localStorage.getItem(STORE_KEY);
     if (raw) {
-      return { ...EMPTY, ...(JSON.parse(raw) as GameState), pending: {} };
+      return { ...EMPTY_GAME, ...(JSON.parse(raw) as GameState), pending: {} };
     }
   } catch {
     /* fresh game */
   }
-  return EMPTY;
+  return EMPTY_GAME;
+}
+
+/** Union of every repertoire in the game, for resolving strip colors. */
+function buildDefMap(pitchers: Pitcher[]): PitchDef[] {
+  const all: PitchDef[] = [];
+  for (const p of pitchers) {
+    for (const d of p.pitches) {
+      if (!all.some((x) => x.k === d.k)) all.push(d);
+    }
+  }
+  return all;
 }
 
 export default function PitchCaller() {
@@ -127,6 +70,8 @@ export default function PitchCaller() {
   const [adding, setAdding] = useState(false);
   const [jIn, setJIn] = useState("");
   const [hIn, setHIn] = useState<Hand>("R");
+  const [showSetup, setShowSetup] = useState(false);
+  const [pickingPitcher, setPickingPitcher] = useState(false);
 
   // true after hydration; gates rendering so SSR and first client render match
   const loaded = useSyncExternalStore(
@@ -138,11 +83,15 @@ export default function PitchCaller() {
   // ── Supabase game row tracking (localStorage stays the live source of truth) ──
   const gameIdRef = useRef<string | null | undefined>(undefined);
   const idPromiseRef = useRef<Promise<string | null> | null>(null);
+  const gameMetaRef = useRef<{ opponent: string | null; teamId: string | null }>(
+    { opponent: null, teamId: null }
+  );
 
-  const ensureGameId = (opponent?: string | null) => {
+  const ensureGameId = () => {
     if (gameIdRef.current) return Promise.resolve(gameIdRef.current);
     if (!idPromiseRef.current) {
-      idPromiseRef.current = createGameRow(opponent).then((id) => {
+      const { opponent, teamId } = gameMetaRef.current;
+      idPromiseRef.current = createGameRow(opponent, teamId).then((id) => {
         if (id) {
           gameIdRef.current = id;
           try {
@@ -158,7 +107,7 @@ export default function PitchCaller() {
     return idPromiseRef.current;
   };
 
-  // persist: localStorage immediately, Supabase debounced + best-effort
+  // persist: localStorage immediately; Supabase (game + roster) debounced
   useEffect(() => {
     if (!loaded) return;
     try {
@@ -172,11 +121,19 @@ export default function PitchCaller() {
       } catch {
         gameIdRef.current = null;
       }
+      gameMetaRef.current = {
+        opponent: game.opponentName,
+        teamId: game.teamId,
+      };
     }
     const t = setTimeout(() => {
       void ensureGameId().then((id) => {
         if (id) void saveGameRow(id, game);
       });
+      // roster sync-back: the saved team absorbs new/edited batters
+      if (game.teamId && game.batters.length) {
+        void syncTeamBatters(game.teamId, game.batters);
+      }
     }, 1500);
     return () => clearTimeout(t);
   }, [game, loaded]);
@@ -185,6 +142,20 @@ export default function PitchCaller() {
     setToast(msg);
     setTimeout(() => setToast(null), 1100);
   };
+
+  /* ── derived ── */
+  const curPitcher =
+    game.pitchers.find((p) => p.id === game.pitcherId) ?? null;
+  const repertoire: PitchDef[] = curPitcher?.pitches.length
+    ? curPitcher.pitches
+    : STANDARD_PITCHES; // legacy games / no pitcher yet
+  const defMap = useMemo(() => {
+    const defs = buildDefMap(game.pitchers);
+    return defs.length ? defs : STANDARD_PITCHES;
+  }, [game.pitchers]);
+  const curBatter =
+    game.batters.find((b) => b.id === game.currentBatterId) ?? null;
+  const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
 
   /* ── actions ── */
   const bringUp = (batterId: string) =>
@@ -222,12 +193,13 @@ export default function PitchCaller() {
     setAdding(false);
   };
 
-  const commit = (type: PitchKey, zone: number) =>
+  const commit = (type: string, zone: number) =>
     setGame((g) => {
       if (!g.currentBatterId) return g;
       const pitch: Pitch = {
         id: uid(),
         batterId: g.currentBatterId,
+        pitcherId: g.pitcherId,
         ab: g.currentAb,
         type,
         zone,
@@ -245,7 +217,7 @@ export default function PitchCaller() {
       };
     });
 
-  const pickType = (t: PitchKey) => {
+  const pickType = (t: string) => {
     if (!game.currentBatterId) {
       flash("Pick a batter first");
       return;
@@ -281,7 +253,7 @@ export default function PitchCaller() {
         }
       }
       let { b, s } = g.count;
-      let ended: AbEnd | null = null;
+      let ended: "BB" | "K" | "IP" | null = null;
       if (o === "ball") {
         b++;
         if (b >= 4) ended = "BB";
@@ -308,26 +280,36 @@ export default function PitchCaller() {
       return { ...g, pitches, count: { b, s } };
     });
 
-  const newGame = () => {
-    if (!window.confirm("Start a new game? The current game stays saved in Supabase.")) {
-      return;
-    }
-    const opponent = window.prompt("Opponent (optional):")?.trim() || null;
-    setGame(EMPTY);
+  const startGame = (setup: GameSetup) => {
+    setShowSetup(false);
+    setGame({
+      ...EMPTY_GAME,
+      pitchers: setup.pitchers,
+      pitcherId: setup.pitcherId,
+      teamId: setup.teamId,
+      opponentName: setup.opponentName,
+      batters: setup.batters,
+    });
     gameIdRef.current = null;
     idPromiseRef.current = null;
+    gameMetaRef.current = {
+      opponent: setup.opponentName,
+      teamId: setup.teamId,
+    };
     try {
       window.localStorage.removeItem(GAME_ID_KEY);
     } catch {
       /* ignore */
     }
-    void ensureGameId(opponent);
+    void ensureGameId();
   };
 
-  /* ── derived ── */
-  const curBatter =
-    game.batters.find((b) => b.id === game.currentBatterId) ?? null;
-  const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
+  const changePitcher = (pitcherId: string) => {
+    setPickingPitcher(false);
+    setGame((g) => ({ ...g, pitcherId, pending: {} }));
+    const p = game.pitchers.find((x) => x.id === pitcherId);
+    if (p) flash(`Now pitching: ${p.name}`);
+  };
 
   if (!loaded) {
     return (
@@ -346,9 +328,16 @@ export default function PitchCaller() {
           <span className="text-amber-600 dark:text-amber-400">CALL</span>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/team"
+            aria-label="Coach setup"
+            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+          >
+            <Users className="size-4" />
+          </Link>
           <ThemeToggle />
           <button
-            onClick={newGame}
+            onClick={() => setShowSetup(true)}
             className="rounded-lg border px-2.5 py-1.5 text-xs tracking-widest text-muted-foreground hover:bg-accent"
           >
             NEW GAME
@@ -366,6 +355,61 @@ export default function PitchCaller() {
           </button>
         </div>
       </div>
+
+      {/* game context bar: opponent + current pitcher */}
+      <div className="flex items-center justify-between gap-2 border-b px-3.5 py-2">
+        <div className="min-w-0 truncate text-sm text-muted-foreground">
+          {game.opponentName ? (
+            <>
+              vs <span className="font-bold text-foreground">{game.opponentName}</span>
+            </>
+          ) : (
+            "no opponent set"
+          )}
+        </div>
+        <button
+          onClick={() =>
+            game.pitchers.length > 1
+              ? setPickingPitcher((v) => !v)
+              : undefined
+          }
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-bold",
+            pickingPitcher
+              ? "border-amber-500 text-amber-600 dark:text-amber-400"
+              : "border-border hover:bg-accent"
+          )}
+        >
+          {game.pitchers.length > 1 && <RefreshCw className="size-3.5" />}
+          P: {curPitcher ? curPitcher.name : "—"}
+        </button>
+      </div>
+
+      {/* mid-game pitcher switch (batters and log untouched) */}
+      {pickingPitcher && (
+        <div className="flex flex-wrap gap-1.5 border-b px-3.5 py-2">
+          {game.pitchers.map((p) => {
+            const on = p.id === game.pitcherId;
+            return (
+              <button
+                key={p.id}
+                onClick={() => changePitcher(p.id)}
+                className={cn(
+                  "rounded-lg border px-3 py-1.5 text-sm font-bold",
+                  on
+                    ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    : "border-border hover:bg-accent"
+                )}
+              >
+                {p.name}
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  {p.pitches.length}p
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* tabs */}
       <div className="flex gap-1.5 px-3.5 pb-1 pt-2.5">
@@ -485,12 +529,23 @@ export default function PitchCaller() {
             </div>
           )}
 
-          {/* pitch types */}
-          <div className="mx-0.5 mb-1.5 mt-0.5 text-xs tracking-widest text-muted-foreground">
-            ① PITCH
+          {/* pitch types — adapts to the current pitcher's repertoire */}
+          <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
+            <span>① PITCH</span>
+            {curPitcher && (
+              <span className="opacity-60">{curPitcher.name}&apos;s arsenal</span>
+            )}
           </div>
-          <div className="mb-3.5 grid grid-cols-5 gap-1.5">
-            {PITCHES.map((p) => {
+          <div
+            className="mb-3.5 grid gap-1.5"
+            style={{
+              gridTemplateColumns: `repeat(${Math.min(
+                Math.max(repertoire.length, 1),
+                5
+              )}, minmax(0, 1fr))`,
+            }}
+          >
+            {repertoire.map((p) => {
               const on = game.pending.type === p.k;
               return (
                 <button
@@ -572,6 +627,7 @@ export default function PitchCaller() {
               all={game.pitches.filter(
                 (p) => p.batterId === game.currentBatterId
               )}
+              defs={defMap}
             />
           </div>
         </div>
@@ -582,13 +638,21 @@ export default function PitchCaller() {
           game={game}
           viewBatter={viewBatter}
           setViewBatter={setViewBatter}
+          defs={defMap}
         />
       )}
 
-      {tab === "game" && <GameView game={game} />}
+      {tab === "game" && <GameView game={game} defs={defMap} />}
+
+      {showSetup && (
+        <NewGameSetup
+          onStart={startGame}
+          onCancel={() => setShowSetup(false)}
+        />
+      )}
 
       {toast && (
-        <div className="animate-pop fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-500 px-4.5 py-2 text-[15px] font-bold tracking-wide text-black shadow-lg">
+        <div className="animate-pop fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-2 text-[15px] font-bold tracking-wide text-black shadow-lg">
           {toast}
         </div>
       )}
@@ -597,7 +661,15 @@ export default function PitchCaller() {
 }
 
 /* ───────── sequence strip with repeat-detection (the predictability mirror) ───────── */
-function Strip({ pitches, all }: { pitches: Pitch[]; all?: Pitch[] }) {
+function Strip({
+  pitches,
+  all,
+  defs,
+}: {
+  pitches: Pitch[];
+  all?: Pitch[];
+  defs: PitchDef[];
+}) {
   // a call is a "repeat" if same type+zone+count seen earlier for this batter
   const seen: Record<string, number> = {};
   const flagged = (all ?? pitches).map((p) => {
@@ -619,7 +691,7 @@ function Strip({ pitches, all }: { pitches: Pitch[]; all?: Pitch[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {pitches.map((p, i) => {
-        const c = PMAP[p.type].c;
+        const c = pitchDef(defs, p.type).c;
         const back =
           i > 0 &&
           pitches[i - 1].type === p.type &&
@@ -662,10 +734,12 @@ function BatterView({
   game,
   viewBatter,
   setViewBatter,
+  defs,
 }: {
   game: GameState;
   viewBatter: string | null;
   setViewBatter: (id: string | null) => void;
+  defs: PitchDef[];
 }) {
   const id = viewBatter ?? game.currentBatterId;
   const batter = game.batters.find((b) => b.id === id);
@@ -711,7 +785,8 @@ function BatterView({
       ) : (
         <>
           <div className="mb-1 text-[22px] font-bold">
-            #{batter.jersey}{" "}
+            #{batter.jersey}
+            {batter.name && <span className="ml-2">{batter.name}</span>}{" "}
             <span className="text-sm text-muted-foreground">
               {batter.hand}HH · {mine.length} pitches · {abs.length} AB
             </span>
@@ -749,7 +824,7 @@ function BatterView({
                     </span>
                   )}
                 </div>
-                <Strip pitches={ps} all={mine} />
+                <Strip pitches={ps} all={mine} defs={defs} />
               </div>
             );
           })}
@@ -759,21 +834,28 @@ function BatterView({
   );
 }
 
-/* ───────── game view: pooled mix-by-count (where the sample is thick enough) ───────── */
-function GameView({ game }: { game: GameState }) {
-  const { pitches } = game;
+/* ───────── game view: pooled mix-by-count, per pitcher ───────── */
+function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
+  const [filter, setFilter] = useState<string | "all">(
+    game.pitcherId ?? "all"
+  );
+
+  const pitches = useMemo(
+    () =>
+      filter === "all"
+        ? game.pitches
+        : game.pitches.filter((p) => (p.pitcherId ?? null) === filter),
+    [game.pitches, filter]
+  );
 
   const overall = useMemo(() => {
-    const m: Partial<Record<PitchKey, number>> = {};
+    const m: Record<string, number> = {};
     pitches.forEach((p) => (m[p.type] = (m[p.type] || 0) + 1));
     return m;
   }, [pitches]);
 
   const byCount = useMemo(() => {
-    const m: Record<
-      string,
-      { total: number; t: Partial<Record<PitchKey, number>> }
-    > = {};
+    const m: Record<string, { total: number; t: Record<string, number> }> = {};
     pitches.forEach((p) => {
       const k = ck(p.b, p.s);
       m[k] = m[k] || { total: 0, t: {} };
@@ -799,90 +881,133 @@ function GameView({ game }: { game: GameState }) {
     "3-2",
   ];
   const present = order.filter((k) => byCount[k]);
-
-  if (!total) {
-    return (
-      <div className="p-5 text-muted-foreground/60">
-        Log some pitches to see tendencies.
-      </div>
-    );
-  }
+  const typesUsed = defs.filter((d) => overall[d.k]);
 
   return (
     <div className="px-3.5 py-2">
-      <div className="mx-0.5 mb-2 mt-1 text-xs tracking-widest text-muted-foreground">
-        OVERALL MIX · {total} pitches
-      </div>
-      <div className="mb-1.5 flex h-[30px] overflow-hidden rounded-lg">
-        {PITCHES.filter((p) => overall[p.k]).map((p) => (
-          <div
-            key={p.k}
-            title={p.k}
-            className="flex items-center justify-center text-xs font-bold text-black"
-            style={{
-              width: `${((overall[p.k] || 0) / total) * 100}%`,
-              background: p.c,
-            }}
+      {/* pitcher filter — tendencies are pitcher-specific */}
+      {game.pitchers.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setFilter("all")}
+            className={cn(
+              "rounded-lg border px-2.5 py-1.5 text-xs font-bold tracking-widest",
+              filter === "all"
+                ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                : "border-border text-muted-foreground hover:bg-accent"
+            )}
           >
-            {Math.round(((overall[p.k] || 0) / total) * 100) >= 10 ? p.k : ""}
-          </div>
-        ))}
-      </div>
-      <div className="mb-4 flex flex-wrap gap-2.5">
-        {PITCHES.filter((p) => overall[p.k]).map((p) => (
-          <span key={p.k} className="font-mono text-xs text-muted-foreground">
-            <span style={{ color: p.c }}>■</span> {p.k} {overall[p.k]} (
-            {Math.round(((overall[p.k] || 0) / total) * 100)}%)
-          </span>
-        ))}
-      </div>
-
-      <div className="mx-0.5 mb-2 mt-1 text-xs tracking-widest text-muted-foreground">
-        MIX BY COUNT{" "}
-        <span className="opacity-60">· raw counts shown — watch thin cells</span>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        {present.map((k) => {
-          const row = byCount[k];
-          const thin = row.total < 5;
-          return (
-            <div
-              key={k}
-              className="flex items-center gap-2.5 rounded-xl border bg-card px-3 py-2"
+            ALL
+          </button>
+          {game.pitchers.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setFilter(p.id)}
+              className={cn(
+                "rounded-lg border px-2.5 py-1.5 text-xs font-bold",
+                filter === p.id
+                  ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  : "border-border text-muted-foreground hover:bg-accent"
+              )}
             >
-              <div className="w-[46px] font-mono text-xl font-bold text-amber-600 dark:text-amber-400">
-                {k}
-              </div>
-              <div className="flex h-[22px] flex-1 overflow-hidden rounded-md bg-muted">
-                {PITCHES.filter((p) => row.t[p.k]).map((p) => (
-                  <div
-                    key={p.k}
-                    style={{
-                      width: `${((row.t[p.k] || 0) / row.total) * 100}%`,
-                      background: p.c,
-                    }}
-                  />
-                ))}
-              </div>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!total ? (
+        <div className="p-5 text-muted-foreground/60">
+          {filter === "all"
+            ? "Log some pitches to see tendencies."
+            : "No pitches from this pitcher yet."}
+        </div>
+      ) : (
+        <>
+          <div className="mx-0.5 mb-2 mt-1 text-xs tracking-widest text-muted-foreground">
+            OVERALL MIX · {total} pitches
+          </div>
+          <div className="mb-1.5 flex h-[30px] overflow-hidden rounded-lg">
+            {typesUsed.map((p) => (
               <div
-                className={cn(
-                  "w-16 text-right font-mono text-xs",
-                  thin
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-muted-foreground"
-                )}
+                key={p.k}
+                title={p.k}
+                className="flex items-center justify-center text-xs font-bold text-black"
+                style={{
+                  width: `${((overall[p.k] || 0) / total) * 100}%`,
+                  background: p.c,
+                }}
               >
-                {row.total} pitch{row.total > 1 ? "es" : ""}
+                {Math.round(((overall[p.k] || 0) / total) * 100) >= 10
+                  ? p.k
+                  : ""}
               </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-3 font-mono text-[11px] leading-relaxed text-muted-foreground/60">
-        Cells under 5 pitches are flagged red — they&apos;re too thin to read as
-        a tendency. This view pools all batters so the numbers mean something;
-        per-batter patterns live in the BATTER tab as sequence, not percentages.
-      </div>
+            ))}
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2.5">
+            {typesUsed.map((p) => (
+              <span
+                key={p.k}
+                className="font-mono text-xs text-muted-foreground"
+              >
+                <span style={{ color: p.c }}>■</span> {p.k} {overall[p.k]} (
+                {Math.round(((overall[p.k] || 0) / total) * 100)}%)
+              </span>
+            ))}
+          </div>
+
+          <div className="mx-0.5 mb-2 mt-1 text-xs tracking-widest text-muted-foreground">
+            MIX BY COUNT{" "}
+            <span className="opacity-60">
+              · raw counts shown — watch thin cells
+            </span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {present.map((k) => {
+              const row = byCount[k];
+              const thin = row.total < 5;
+              return (
+                <div
+                  key={k}
+                  className="flex items-center gap-2.5 rounded-xl border bg-card px-3 py-2"
+                >
+                  <div className="w-[46px] font-mono text-xl font-bold text-amber-600 dark:text-amber-400">
+                    {k}
+                  </div>
+                  <div className="flex h-[22px] flex-1 overflow-hidden rounded-md bg-muted">
+                    {defs
+                      .filter((p) => row.t[p.k])
+                      .map((p) => (
+                        <div
+                          key={p.k}
+                          style={{
+                            width: `${((row.t[p.k] || 0) / row.total) * 100}%`,
+                            background: p.c,
+                          }}
+                        />
+                      ))}
+                  </div>
+                  <div
+                    className={cn(
+                      "w-16 text-right font-mono text-xs",
+                      thin
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {row.total} pitch{row.total > 1 ? "es" : ""}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 font-mono text-[11px] leading-relaxed text-muted-foreground/60">
+            Cells under 5 pitches are flagged red — they&apos;re too thin to
+            read as a tendency. This view pools all batters; per-batter
+            patterns live in the BATTER tab as sequence, not percentages.
+          </div>
+        </>
+      )}
     </div>
   );
 }

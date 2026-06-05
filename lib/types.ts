@@ -1,0 +1,97 @@
+import type { PitchDef } from "./catalog";
+
+export type Hand = "R" | "L";
+export type Outcome = "ball" | "strike" | "foul" | "inplay";
+export type AbEnd = "BB" | "K" | "IP";
+
+export interface Batter {
+  id: string;
+  jersey: string;
+  hand: Hand;
+  name?: string;
+}
+
+export interface Pitcher {
+  id: string;
+  name: string;
+  number?: string | null;
+  pitches: PitchDef[];
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  batters: Batter[];
+}
+
+export interface Pitch {
+  id: string;
+  batterId: string;
+  /** who threw it — pitchers can change mid-game */
+  pitcherId: string | null;
+  ab: number;
+  type: string; // pitch key from the pitcher's repertoire
+  zone: number;
+  b: number;
+  s: number;
+  outcome: Outcome | null;
+  ts: number;
+}
+
+export interface AbResult {
+  ab: number;
+  batterId: string;
+  result: AbEnd;
+}
+
+export interface GameState {
+  /** snapshot of available pitchers at game start (offline safety) */
+  pitchers: Pitcher[];
+  /** currently active pitcher id */
+  pitcherId: string | null;
+  /** linked opponent team row, when loaded/created */
+  teamId: string | null;
+  opponentName: string | null;
+  batters: Batter[];
+  pitches: Pitch[];
+  abResults: AbResult[];
+  currentBatterId: string | null;
+  currentAb: number;
+  abCounter: number;
+  count: { b: number; s: number };
+  pending: { type?: string; zone?: number };
+  abOver: boolean;
+  lastLogged: string | null;
+}
+
+export const EMPTY_GAME: GameState = {
+  pitchers: [],
+  pitcherId: null,
+  teamId: null,
+  opponentName: null,
+  batters: [],
+  pitches: [],
+  abResults: [],
+  currentBatterId: null,
+  currentAb: 0,
+  abCounter: 0,
+  count: { b: 0, s: 0 },
+  pending: {},
+  abOver: false,
+  lastLogged: null,
+};
+
+export const ZONES = [
+  "hi-in",
+  "high",
+  "hi-aw",
+  "in",
+  "mid",
+  "away",
+  "lo-in",
+  "low",
+  "lo-aw",
+] as const;
+
+export const uid = () =>
+  Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
