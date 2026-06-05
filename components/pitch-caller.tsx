@@ -22,6 +22,7 @@ import {
 } from "@/lib/supabase/sync";
 import { getSupabase } from "@/lib/supabase/client";
 import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
+import { CALL_SHEET_NAME, randomCall } from "@/lib/callsheet";
 import {
   EMPTY_GAME,
   FIELD_LABEL,
@@ -280,16 +281,21 @@ export default function PitchCaller() {
   };
 
   // the call stays selected (highlighted) until the result tags it;
-  // pitch + outcome commit together on the result tap
+  // pitch + outcome commit together on the result tap. When both type
+  // and zone are set, a random wristband code is drawn to relay.
   const pickType = (t: string) => {
     if (!game.currentBatterId) {
       flash("Pick a batter first");
       return;
     }
-    setGame((g) => ({
-      ...g,
-      pending: { ...g.pending, type: g.pending.type === t ? undefined : t },
-    }));
+    setGame((g) => {
+      const type = g.pending.type === t ? undefined : t;
+      const call =
+        type != null && g.pending.zone != null
+          ? randomCall(type, g.pending.zone) ?? undefined
+          : undefined;
+      return { ...g, pending: { ...g.pending, type, call } };
+    });
   };
 
   const pickZone = (z: number) => {
@@ -297,11 +303,27 @@ export default function PitchCaller() {
       flash("Pick a batter first");
       return;
     }
-    setGame((g) => ({
-      ...g,
-      pending: { ...g.pending, zone: g.pending.zone === z ? undefined : z },
-    }));
+    setGame((g) => {
+      const zone = g.pending.zone === z ? undefined : z;
+      const call =
+        zone != null && g.pending.type != null
+          ? randomCall(g.pending.type, zone) ?? undefined
+          : undefined;
+      return { ...g, pending: { ...g.pending, zone, call } };
+    });
   };
+
+  const rerollCall = () =>
+    setGame((g) => {
+      if (g.pending.type == null || g.pending.zone == null) return g;
+      return {
+        ...g,
+        pending: {
+          ...g.pending,
+          call: randomCall(g.pending.type, g.pending.zone) ?? undefined,
+        },
+      };
+    });
 
   const outcome = (o: Outcome) => {
     if (game.pending.type == null || game.pending.zone == null) {
@@ -321,6 +343,7 @@ export default function PitchCaller() {
         b: g.count.b,
         s: g.count.s,
         outcome: o,
+        call: g.pending.call,
         ts: Date.now(),
       };
       const pitches = [...g.pitches, pitch];
@@ -756,6 +779,27 @@ export default function PitchCaller() {
               );
             })}
           </div>
+
+          {/* relay code: random wristband number for the armed call */}
+          {game.pending.type != null && game.pending.zone != null && (
+            <button
+              onClick={rerollCall}
+              className="animate-pop mb-3.5 w-full rounded-xl border-2 border-amber-500 bg-amber-500/10 py-2.5 hover:bg-amber-500/20"
+            >
+              <div className="text-[10px] tracking-widest text-muted-foreground">
+                RELAY · {CALL_SHEET_NAME} · TAP TO RE-ROLL
+              </div>
+              {game.pending.call ? (
+                <div className="font-mono text-5xl font-bold tracking-[0.35em] text-amber-600 dark:text-amber-400">
+                  {game.pending.call}
+                </div>
+              ) : (
+                <div className="py-2 text-sm font-bold text-red-600 dark:text-red-400">
+                  NOT ON CARD — relay manually
+                </div>
+              )}
+            </button>
+          )}
 
           {/* outcome */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">

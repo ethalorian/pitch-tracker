@@ -67,6 +67,8 @@ export interface Pitch {
   outcome: Outcome | null;
   /** filled by the post-IN-PLAY panel; absent on fouls/legacy pitches */
   contact?: ContactDetail;
+  /** wristband code that was relayed for this call */
+  call?: string;
   ts: number;
 }
 
@@ -91,7 +93,7 @@ export interface GameState {
   currentAb: number;
   abCounter: number;
   count: { b: number; s: number };
-  pending: { type?: string; zone?: number };
+  pending: { type?: string; zone?: number; call?: string };
   abOver: boolean;
   lastLogged: string | null;
 }
