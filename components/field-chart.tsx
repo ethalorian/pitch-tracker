@@ -61,9 +61,9 @@ export default function FieldChart({
         stroke="var(--border)"
         strokeWidth="0.8"
       />
-      {/* infield dirt */}
+      {/* infield dirt — radius 36 so the full diamond (2B at r≈32) sits inside */}
       <path
-        d="M 50 72 L 30 52 A 28.3 28.3 0 0 1 70 52 Z"
+        d="M 50 72 L 24.5 46.5 A 36 36 0 0 1 75.5 46.5 Z"
         fill="rgba(255, 178, 90, 0.14)"
         stroke="var(--border)"
         strokeWidth="0.6"

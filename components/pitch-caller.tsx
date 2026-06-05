@@ -194,6 +194,25 @@ export default function PitchCaller() {
     game.batters.find((b) => b.id === game.currentBatterId) ?? null;
   const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
 
+  // live line for the current pitcher: workload + strike throwing
+  const pitcherStats = useMemo(() => {
+    const mine = game.pitches.filter(
+      (p) => (p.pitcherId ?? null) === game.pitcherId
+    );
+    const isStrike = (p: Pitch) => p.outcome != null && p.outcome !== "ball";
+    const total = mine.length;
+    const strikes = mine.filter(isStrike).length;
+    const first = mine.filter((p) => p.b === 0 && p.s === 0);
+    const firstStrikes = first.filter(isStrike).length;
+    return {
+      total,
+      strikePct: total ? Math.round((strikes / total) * 100) : null,
+      fpsPct: first.length
+        ? Math.round((firstStrikes / first.length) * 100)
+        : null,
+    };
+  }, [game.pitches, game.pitcherId]);
+
   // batter intel, all night: contact (red) vs swing-and-miss (blue),
   // per zone for the heat overlay and per type+zone combo for advice
   const batterHeat = useMemo(() => {
@@ -332,6 +351,28 @@ export default function PitchCaller() {
       flash("Select pitch + location first");
       return;
     }
+    // auto-advance: once the order has been around (2nd+ AB for this
+    // batter), the lineup is known — next hitter comes up automatically
+    const willEnd: "BB" | "K" | "IP" | null =
+      o === "inplay"
+        ? "IP"
+        : o === "ball" && game.count.b >= 3
+          ? "BB"
+          : (o === "called" || o === "miss" || o === "strike") &&
+              game.count.s >= 2
+            ? "K"
+            : null;
+    const priorAbs = game.abResults.filter(
+      (r) => r.batterId === game.currentBatterId
+    ).length;
+    const curIdx = game.batters.findIndex(
+      (b) => b.id === game.currentBatterId
+    );
+    const nextBatter =
+      game.batters.length > 1 && curIdx >= 0
+        ? game.batters[(curIdx + 1) % game.batters.length]
+        : null;
+    const autoAdvance = willEnd != null && priorAbs >= 1 && nextBatter != null;
     setGame((g) => {
       if (!g.currentBatterId || g.pending.type == null || g.pending.zone == null)
         return g;
@@ -363,7 +404,7 @@ export default function PitchCaller() {
         ended = "IP";
       }
       if (ended) {
-        return {
+        const base = {
           ...g,
           pitches,
           pending: {},
@@ -373,8 +414,17 @@ export default function PitchCaller() {
             { ab: g.currentAb, batterId: g.currentBatterId, result: ended },
           ],
           count: { b: 0, s: 0 },
-          abOver: true,
         };
+        if (autoAdvance && nextBatter) {
+          return {
+            ...base,
+            abOver: false,
+            currentBatterId: nextBatter.id,
+            currentAb: g.abCounter + 1,
+            abCounter: g.abCounter + 1,
+          };
+        }
+        return { ...base, abOver: true };
       }
       return {
         ...g,
@@ -385,6 +435,9 @@ export default function PitchCaller() {
         abOver: false,
       };
     });
+    if (autoAdvance && nextBatter) {
+      flash(`${willEnd} · UP: #${nextBatter.jersey}`);
+    }
     if (o === "inplay") {
       // AB is over — dead time. Ask hard/weak, trajectory, and where.
       setContactQuality(null);
@@ -743,6 +796,37 @@ export default function PitchCaller() {
                 {game.count.s}
               </div>
             </div>
+          </div>
+
+          {/* live pitcher line: workload + strike throwing */}
+          <div className="mb-2.5 grid grid-cols-3 gap-1.5">
+            {(
+              [
+                ["PITCHES", pitcherStats.total],
+                [
+                  "STRIKE %",
+                  pitcherStats.strikePct != null
+                    ? `${pitcherStats.strikePct}`
+                    : "—",
+                ],
+                [
+                  "1ST-PITCH K %",
+                  pitcherStats.fpsPct != null ? `${pitcherStats.fpsPct}` : "—",
+                ],
+              ] as const
+            ).map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border bg-card px-2 py-1.5 text-center"
+              >
+                <div className="text-[10px] tracking-widest text-muted-foreground">
+                  {label}
+                </div>
+                <div className="font-mono text-xl font-bold leading-tight text-foreground">
+                  {value}
+                </div>
+              </div>
+            ))}
           </div>
 
           {game.abOver && (
