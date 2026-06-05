@@ -269,41 +269,17 @@ export default function PitchCaller() {
     setAdding(false);
   };
 
-  const commit = (type: string, zone: number) =>
-    setGame((g) => {
-      if (!g.currentBatterId) return g;
-      const pitch: Pitch = {
-        id: uid(),
-        batterId: g.currentBatterId,
-        pitcherId: g.pitcherId,
-        ab: g.currentAb,
-        type,
-        zone,
-        b: g.count.b,
-        s: g.count.s,
-        outcome: null,
-        ts: Date.now(),
-      };
-      return {
-        ...g,
-        pitches: [...g.pitches, pitch],
-        pending: {},
-        lastLogged: pitch.id,
-        abOver: false,
-      };
-    });
-
+  // the call stays selected (highlighted) until the result tags it;
+  // pitch + outcome commit together on the result tap
   const pickType = (t: string) => {
     if (!game.currentBatterId) {
       flash("Pick a batter first");
       return;
     }
-    if (game.pending.zone != null) {
-      commit(t, game.pending.zone);
-      flash(`${t} · ${ZONES[game.pending.zone]}`);
-    } else {
-      setGame((g) => ({ ...g, pending: { ...g.pending, type: t } }));
-    }
+    setGame((g) => ({
+      ...g,
+      pending: { ...g.pending, type: g.pending.type === t ? undefined : t },
+    }));
   };
 
   const pickZone = (z: number) => {
@@ -311,23 +287,33 @@ export default function PitchCaller() {
       flash("Pick a batter first");
       return;
     }
-    if (game.pending.type) {
-      commit(game.pending.type, z);
-      flash(`${game.pending.type} · ${ZONES[z]}`);
-    } else {
-      setGame((g) => ({ ...g, pending: { ...g.pending, zone: z } }));
-    }
+    setGame((g) => ({
+      ...g,
+      pending: { ...g.pending, zone: g.pending.zone === z ? undefined : z },
+    }));
   };
 
-  const outcome = (o: Outcome) =>
+  const outcome = (o: Outcome) => {
+    if (game.pending.type == null || game.pending.zone == null) {
+      flash("Select pitch + location first");
+      return;
+    }
     setGame((g) => {
-      const pitches = [...g.pitches];
-      for (let i = pitches.length - 1; i >= 0; i--) {
-        if (pitches[i].ab === g.currentAb) {
-          if (!pitches[i].outcome) pitches[i] = { ...pitches[i], outcome: o };
-          break;
-        }
-      }
+      if (!g.currentBatterId || g.pending.type == null || g.pending.zone == null)
+        return g;
+      const pitch: Pitch = {
+        id: uid(),
+        batterId: g.currentBatterId,
+        pitcherId: g.pitcherId,
+        ab: g.currentAb,
+        type: g.pending.type,
+        zone: g.pending.zone,
+        b: g.count.b,
+        s: g.count.s,
+        outcome: o,
+        ts: Date.now(),
+      };
+      const pitches = [...g.pitches, pitch];
       let { b, s } = g.count;
       let ended: "BB" | "K" | "IP" | null = null;
       if (o === "ball") {
@@ -341,10 +327,12 @@ export default function PitchCaller() {
       } else if (o === "inplay") {
         ended = "IP";
       }
-      if (ended && g.currentBatterId) {
+      if (ended) {
         return {
           ...g,
           pitches,
+          pending: {},
+          lastLogged: pitch.id,
           abResults: [
             ...g.abResults,
             { ab: g.currentAb, batterId: g.currentBatterId, result: ended },
@@ -353,8 +341,16 @@ export default function PitchCaller() {
           abOver: true,
         };
       }
-      return { ...g, pitches, count: { b, s } };
+      return {
+        ...g,
+        pitches,
+        pending: {},
+        lastLogged: pitch.id,
+        count: { b, s },
+        abOver: false,
+      };
     });
+  };
 
   const startGame = (setup: GameSetup) => {
     setShowSetup(false);
@@ -744,7 +740,9 @@ export default function PitchCaller() {
                 disabled={!curBatter}
                 className={cn(
                   "rounded-xl border bg-card py-3.5 text-[11px] font-bold tracking-wide text-card-foreground hover:bg-accent disabled:opacity-40",
-                  curAbPitches.some((p) => !p.outcome) && "animate-pulse-glow"
+                  game.pending.type != null &&
+                    game.pending.zone != null &&
+                    "animate-pulse-glow"
                 )}
               >
                 {l}
