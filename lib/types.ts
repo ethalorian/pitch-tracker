@@ -9,21 +9,25 @@ export type Swing = "contact" | "miss" | "none";
 
 export type ContactQuality = "hard" | "weak";
 
-/** Where an in-play ball went: outfield L/C/R, infield L/M/R. */
-export type FieldZone = "lf" | "cf" | "rf" | "if-l" | "if-m" | "if-r";
+export type Trajectory = "ground" | "line" | "fly";
 
-export const FIELD_LABEL: Record<FieldZone, string> = {
-  lf: "LF",
-  cf: "CF",
-  rf: "RF",
-  "if-l": "IF-L",
-  "if-m": "IF-M",
-  "if-r": "IF-R",
+export const TRAJ_LABEL: Record<Trajectory, string> = {
+  ground: "GB",
+  line: "LD",
+  fly: "FLY",
 };
+
+/** Legacy 6-zone field location (pre spray chart). */
+export type FieldZone = "lf" | "cf" | "rf" | "if-l" | "if-m" | "if-r";
 
 export interface ContactDetail {
   quality: ContactQuality;
-  field: FieldZone;
+  trajectory?: Trajectory;
+  /** spray chart coordinates, normalized 0–1 (x across, y down) */
+  x?: number;
+  y?: number;
+  /** legacy coarse zone from the first iteration */
+  field?: FieldZone;
 }
 
 /** Classify an outcome by what the batter's bat did. */

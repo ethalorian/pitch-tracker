@@ -23,19 +23,20 @@ import {
 import { getSupabase } from "@/lib/supabase/client";
 import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
 import { CALL_SHEET_NAME, randomCall } from "@/lib/callsheet";
+import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import {
   EMPTY_GAME,
-  FIELD_LABEL,
+  TRAJ_LABEL,
   ZONES,
   swingOf,
   uid,
   type ContactQuality,
-  type FieldZone,
   type GameState,
   type Hand,
   type Outcome,
   type Pitch,
   type Pitcher,
+  type Trajectory,
 } from "@/lib/types";
 
 const STORE_KEY = "fastpitch-caller-v1";
@@ -92,6 +93,7 @@ export default function PitchCaller() {
   const [contactQuality, setContactQuality] = useState<ContactQuality | null>(
     null
   );
+  const [contactTraj, setContactTraj] = useState<Trajectory | null>(null);
 
   // true after hydration; gates rendering so SSR and first client render match
   const loaded = useSyncExternalStore(
@@ -384,18 +386,27 @@ export default function PitchCaller() {
       };
     });
     if (o === "inplay") {
-      // AB is over — dead time. Ask hard/weak + where it went.
+      // AB is over — dead time. Ask hard/weak, trajectory, and where.
       setContactQuality(null);
+      setContactTraj(null);
       setContactFor("last");
     }
   };
 
-  const tagContact = (quality: ContactQuality, field: FieldZone) => {
+  const tagContact = (
+    quality: ContactQuality,
+    trajectory: Trajectory,
+    x: number,
+    y: number
+  ) => {
     setGame((g) => {
       const pitches = [...g.pitches];
       for (let i = pitches.length - 1; i >= 0; i--) {
         if (pitches[i].outcome === "inplay") {
-          pitches[i] = { ...pitches[i], contact: { quality, field } };
+          pitches[i] = {
+            ...pitches[i],
+            contact: { quality, trajectory, x, y },
+          };
           break;
         }
       }
@@ -403,7 +414,8 @@ export default function PitchCaller() {
     });
     setContactFor(null);
     setContactQuality(null);
-    flash(`${quality.toUpperCase()} · ${FIELD_LABEL[field]}`);
+    setContactTraj(null);
+    flash(`${quality.toUpperCase()} ${TRAJ_LABEL[trajectory]}`);
   };
 
   const startGame = (setup: GameSetup) => {
@@ -881,9 +893,9 @@ export default function PitchCaller() {
         />
       )}
 
-      {/* post-IN-PLAY contact detail: hard/weak, then where it went */}
+      {/* post-IN-PLAY contact detail: hard/weak + trajectory, then tap the field */}
       {contactFor && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center bg-background/80 p-4 pb-10 backdrop-blur-sm">
+        <div className="fixed inset-0 z-30 flex items-end justify-center overflow-y-auto bg-background/80 p-4 pb-10 backdrop-blur-sm">
           <div className="w-full max-w-[440px] rounded-xl border bg-card p-4">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="text-xs font-bold tracking-widest text-amber-600 dark:text-amber-400">
@@ -893,6 +905,7 @@ export default function PitchCaller() {
                 onClick={() => {
                   setContactFor(null);
                   setContactQuality(null);
+                  setContactTraj(null);
                 }}
                 className="rounded-lg border px-2 py-1 text-[11px] tracking-widest text-muted-foreground hover:bg-accent"
               >
@@ -900,13 +913,13 @@ export default function PitchCaller() {
               </button>
             </div>
 
-            <div className="mb-2.5 grid grid-cols-2 gap-1.5">
+            <div className="mb-1.5 grid grid-cols-2 gap-1.5">
               {(["hard", "weak"] as const).map((q) => (
                 <button
                   key={q}
                   onClick={() => setContactQuality(q)}
                   className={cn(
-                    "rounded-xl border-2 py-4 text-base font-bold tracking-wide",
+                    "rounded-xl border-2 py-3 text-base font-bold tracking-wide",
                     contactQuality === q
                       ? q === "hard"
                         ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
@@ -919,30 +932,45 @@ export default function PitchCaller() {
               ))}
             </div>
 
-            {/* field: outfield row above infield row, like the field itself */}
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["lf", "cf", "rf"] as const).map((f) => (
-                <FieldButton
-                  key={f}
-                  f={f}
-                  disabled={!contactQuality}
-                  onPick={() => contactQuality && tagContact(contactQuality, f)}
-                />
-              ))}
-              {(["if-l", "if-m", "if-r"] as const).map((f) => (
-                <FieldButton
-                  key={f}
-                  f={f}
-                  disabled={!contactQuality}
-                  onPick={() => contactQuality && tagContact(contactQuality, f)}
-                />
+            <div className="mb-2.5 grid grid-cols-3 gap-1.5">
+              {(["ground", "line", "fly"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setContactTraj(t)}
+                  className={cn(
+                    "rounded-xl border-2 py-3 text-sm font-bold tracking-wide",
+                    contactTraj === t
+                      ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  {TRAJ_LABEL[t]}
+                </button>
               ))}
             </div>
-            {!contactQuality && (
-              <div className="mt-2 text-center text-xs text-muted-foreground">
-                pick HARD or WEAK first
-              </div>
-            )}
+
+            <div
+              className={cn(
+                "rounded-xl border",
+                contactQuality && contactTraj
+                  ? "border-amber-500"
+                  : "pointer-events-none opacity-40"
+              )}
+            >
+              <FieldChart
+                className="w-full"
+                onTap={(x, y) =>
+                  contactQuality &&
+                  contactTraj &&
+                  tagContact(contactQuality, contactTraj, x, y)
+                }
+              />
+            </div>
+            <div className="mt-2 text-center text-xs text-muted-foreground">
+              {contactQuality && contactTraj
+                ? "tap the field where it went"
+                : "pick quality + trajectory, then tap the field"}
+            </div>
           </div>
         </div>
       )}
@@ -953,26 +981,6 @@ export default function PitchCaller() {
         </div>
       )}
     </div>
-  );
-}
-
-function FieldButton({
-  f,
-  disabled,
-  onPick,
-}: {
-  f: FieldZone;
-  disabled: boolean;
-  onPick: () => void;
-}) {
-  return (
-    <button
-      onClick={onPick}
-      disabled={disabled}
-      className="rounded-xl border-2 border-border bg-background py-4 text-sm font-bold tracking-wide text-foreground/80 hover:bg-accent disabled:opacity-35"
-    >
-      {FIELD_LABEL[f]}
-    </button>
   );
 }
 
@@ -1051,7 +1059,7 @@ function BatterView({
   // swing profile: what she's hit vs swung through, by call
   const combos: Record<string, { contact: number; miss: number; hard: number }> =
     {};
-  const spray: Partial<Record<FieldZone, number>> = {};
+  const sprayMarkers: SprayMarker[] = [];
   mine.forEach((p) => {
     const sw = swingOf(p.outcome);
     if (sw !== "contact" && sw !== "miss") return;
@@ -1060,7 +1068,14 @@ function BatterView({
     combos[k][sw]++;
     if (p.contact) {
       if (p.contact.quality === "hard") combos[k].hard++;
-      spray[p.contact.field] = (spray[p.contact.field] ?? 0) + 1;
+      if (p.contact.x != null && p.contact.y != null) {
+        sprayMarkers.push({
+          x: p.contact.x,
+          y: p.contact.y,
+          quality: p.contact.quality,
+          trajectory: p.contact.trajectory,
+        });
+      }
     }
   });
   const hits = Object.entries(combos)
@@ -1069,9 +1084,6 @@ function BatterView({
   const whiffs = Object.entries(combos)
     .filter(([, v]) => v.miss > 0 && v.miss >= v.contact)
     .sort((a, b) => b[1].miss - a[1].miss);
-  const sprayList = (Object.entries(spray) as [FieldZone, number][]).sort(
-    (a, b) => b[1] - a[1]
-  );
 
   return (
     <div className="px-3.5 py-2">
@@ -1157,20 +1169,19 @@ function BatterView({
             </div>
           )}
 
-          {sprayList.length > 0 && (
-            <div className="mb-3.5 rounded-xl border bg-card px-3 py-2 font-mono text-xs">
-              <span className="font-sans text-[11px] font-bold tracking-widest text-muted-foreground">
-                SPRAY{" "}
-              </span>
-              {sprayList.map(([f, n], i) => (
-                <span key={f}>
-                  {i > 0 && <span className="text-muted-foreground/50"> · </span>}
-                  {FIELD_LABEL[f]}
-                  <span className="text-amber-600 dark:text-amber-400">
-                    ×{n}
-                  </span>
+          {sprayMarkers.length > 0 && (
+            <div className="mb-3.5 rounded-xl border bg-card p-3">
+              <div className="mb-1 flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground">
+                <span>SPRAY CHART</span>
+                <span className="font-mono font-normal normal-case">
+                  <span className="text-red-600 dark:text-red-400">●</span> hard{" "}
+                  <span className="ml-1.5 text-amber-600 dark:text-amber-400">
+                    ●
+                  </span>{" "}
+                  weak · G/L/F
                 </span>
-              ))}
+              </div>
+              <FieldChart className="w-full" markers={sprayMarkers} />
             </div>
           )}
 
@@ -1246,6 +1257,20 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
   const present = order.filter((k) => byCount[k]);
   const typesUsed = defs.filter((d) => overall[d.k]);
 
+  // team spray: every ball in play (off the filtered pitcher), live
+  const teamSpray = useMemo<SprayMarker[]>(
+    () =>
+      pitches
+        .filter((p) => p.contact?.x != null && p.contact?.y != null)
+        .map((p) => ({
+          x: p.contact!.x!,
+          y: p.contact!.y!,
+          quality: p.contact!.quality,
+          trajectory: p.contact!.trajectory,
+        })),
+    [pitches]
+  );
+
   return (
     <div className="px-3.5 py-2">
       {/* pitcher filter — tendencies are pitcher-specific */}
@@ -1287,6 +1312,22 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
         </div>
       ) : (
         <>
+          {teamSpray.length > 0 && (
+            <div className="mb-3.5 rounded-xl border bg-card p-3">
+              <div className="mb-1 flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground">
+                <span>TEAM SPRAY · {teamSpray.length} IN PLAY</span>
+                <span className="font-mono font-normal normal-case">
+                  <span className="text-red-600 dark:text-red-400">●</span> hard{" "}
+                  <span className="ml-1.5 text-amber-600 dark:text-amber-400">
+                    ●
+                  </span>{" "}
+                  weak · G/L/F
+                </span>
+              </div>
+              <FieldChart className="w-full" markers={teamSpray} />
+            </div>
+          )}
+
           <div className="mx-0.5 mb-2 mt-1 text-xs tracking-widest text-muted-foreground">
             OVERALL MIX · {total} pitches
           </div>
