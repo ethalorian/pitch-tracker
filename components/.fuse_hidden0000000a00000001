@@ -22,7 +22,7 @@ import {
 } from "@/lib/supabase/sync";
 import { getSupabase } from "@/lib/supabase/client";
 import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
-import { randomCall } from "@/lib/callsheet";
+import { CALL_SHEET_NAME, randomCall } from "@/lib/callsheet";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import {
   EMPTY_GAME,
@@ -1270,7 +1270,7 @@ function BatterView({
                 <span className="font-mono font-normal normal-case">
                   <span className="text-red-600 dark:text-red-400">●</span> hard{" "}
                   <span className="ml-1.5 text-amber-600 dark:text-amber-400">
-                    ○
+                    ●
                   </span>{" "}
                   weak · G/L/F
                 </span>
@@ -1413,7 +1413,7 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
                 <span className="font-mono font-normal normal-case">
                   <span className="text-red-600 dark:text-red-400">●</span> hard{" "}
                   <span className="ml-1.5 text-amber-600 dark:text-amber-400">
-                    ○
+                    ●
                   </span>{" "}
                   weak · G/L/F
                 </span>
