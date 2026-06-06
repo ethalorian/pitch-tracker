@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  BarChart3,
   History,
   LogOut,
   RefreshCw,
@@ -767,6 +768,13 @@ export default function PitchCaller() {
           <span className="text-amber-600 dark:text-amber-400">CALL</span>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard"
+            aria-label="Pitcher dashboard"
+            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+          >
+            <BarChart3 className="size-4" />
+          </Link>
           <Link
             href="/history"
             aria-label="History & scouting"

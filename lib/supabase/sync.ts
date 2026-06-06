@@ -145,6 +145,22 @@ export async function listGames(): Promise<GameRow[]> {
   }
 }
 
+/** All games with full state — the season corpus for dashboards. */
+export async function listGamesFull(): Promise<GameRow[]> {
+  const sb = getSupabase();
+  if (!sb) return [];
+  try {
+    const { data, error } = await sb
+      .from("games")
+      .select(GAME_COLS)
+      .order("started_at", { ascending: true });
+    if (error || !data) return [];
+    return (data as RawGameRow[]).map(mapGame);
+  } catch {
+    return [];
+  }
+}
+
 export async function getGame(id: string): Promise<GameRow | null> {
   const sb = getSupabase();
   if (!sb) return null;
