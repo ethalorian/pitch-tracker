@@ -9,7 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, RefreshCw, Users } from "lucide-react";
+import { LogOut, RefreshCw, Sparkles, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import NewGameSetup, { type GameSetup } from "@/components/new-game-setup";
@@ -23,6 +23,7 @@ import {
 import { getSupabase } from "@/lib/supabase/client";
 import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
 import { randomCall } from "@/lib/callsheet";
+import { buildInsightSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import {
   EMPTY_GAME,
@@ -94,6 +95,11 @@ export default function PitchCaller() {
     null
   );
   const [contactTraj, setContactTraj] = useState<Trajectory | null>(null);
+  // AI insight
+  const [insightOpen, setInsightOpen] = useState(false);
+  const [insightText, setInsightText] = useState<string | null>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
 
   // true after hydration; gates rendering so SSR and first client render match
   const loaded = useSyncExternalStore(
@@ -515,6 +521,35 @@ export default function PitchCaller() {
     flash("Last pitch undone");
   };
 
+  const fetchInsight = async () => {
+    setInsightOpen(true);
+    setInsightError(null);
+    setInsightText(null);
+    const summary = buildInsightSummary(game);
+    if (!summary.trim()) {
+      setInsightError("Log some pitches first — nothing to analyze yet.");
+      return;
+    }
+    setInsightLoading(true);
+    try {
+      const res = await fetch("/api/insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInsightError(data?.error ?? "Insight request failed.");
+      } else {
+        setInsightText(data.insight ?? "");
+      }
+    } catch {
+      setInsightError("Network error — check your connection.");
+    } finally {
+      setInsightLoading(false);
+    }
+  };
+
   const changePitcher = (pitcherId: string) => {
     setPickingPitcher(false);
     setGame((g) => ({ ...g, pitcherId, pending: {} }));
@@ -600,7 +635,7 @@ export default function PitchCaller() {
 
       {/* game context bar: opponent + current pitcher */}
       <div className="flex items-center justify-between gap-2 border-b px-3.5 py-2">
-        <div className="min-w-0 truncate text-sm text-muted-foreground">
+        <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
           {game.opponentName ? (
             <>
               vs <span className="font-bold text-foreground">{game.opponentName}</span>
@@ -609,6 +644,13 @@ export default function PitchCaller() {
             "no opponent set"
           )}
         </div>
+        <button
+          onClick={fetchInsight}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+        >
+          <Sparkles className="size-3.5" />
+          INSIGHT
+        </button>
         <button
           onClick={() =>
             game.pitchers.length > 1
@@ -1044,6 +1086,58 @@ export default function PitchCaller() {
           onStart={startGame}
           onCancel={() => setShowSetup(false)}
         />
+      )}
+
+      {/* AI insight panel */}
+      {insightOpen && (
+        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-background/85 p-4 pt-10 backdrop-blur-sm">
+          <div className="w-full max-w-[460px] rounded-xl border bg-card p-4">
+            <div className="mb-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
+                <Sparkles className="size-4" />
+                INSIGHT · {curPitcher?.name ?? "pitcher"}
+              </div>
+              <button
+                aria-label="Close"
+                onClick={() => setInsightOpen(false)}
+                className="rounded-lg border p-1 text-muted-foreground hover:bg-accent"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {insightLoading && (
+              <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+                <RefreshCw className="size-4 animate-spin" />
+                Reading the game…
+              </div>
+            )}
+
+            {insightError && (
+              <div className="rounded-lg border border-red-500/60 bg-red-500/10 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
+                {insightError}
+              </div>
+            )}
+
+            {insightText && (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-card-foreground">
+                {insightText}
+              </div>
+            )}
+
+            {!insightLoading && (
+              <button
+                onClick={fetchInsight}
+                className="mt-3 w-full rounded-lg border py-2 text-xs font-bold tracking-widest text-muted-foreground hover:bg-accent"
+              >
+                ↻ RE-ANALYZE
+              </button>
+            )}
+            <div className="mt-2 text-center text-[10px] text-muted-foreground/60">
+              AI-generated — your read overrules it.
+            </div>
+          </div>
+        </div>
       )}
 
       {/* post-IN-PLAY contact detail: hard/weak + trajectory, then tap the field */}
