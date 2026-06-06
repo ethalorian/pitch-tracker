@@ -9,22 +9,38 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, RefreshCw, Sparkles, Users, X } from "lucide-react";
+import {
+  History,
+  LogOut,
+  RefreshCw,
+  Sparkles,
+  StopCircle,
+  Users,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import NewGameSetup, { type GameSetup } from "@/components/new-game-setup";
 import PitcherEditor from "@/components/pitcher-editor";
 import {
   createGameRow,
+  endGame,
+  getActiveCard,
+  getActiveGame,
   listPitchers,
   saveGameRow,
   syncTeamBatters,
 } from "@/lib/supabase/sync";
 import { getSupabase } from "@/lib/supabase/client";
 import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
-import { randomCall } from "@/lib/callsheet";
+import {
+  DEFAULT_CARD_BUCKETS,
+  randomCall,
+  type CallCardBuckets,
+} from "@/lib/callsheet";
 import { buildInsightSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
+import SequencingView from "@/components/sequencing-view";
 import {
   EMPTY_GAME,
   TRAJ_LABEL,
@@ -42,6 +58,7 @@ import {
 
 const STORE_KEY = "fastpitch-caller-v1";
 const GAME_ID_KEY = "fastpitch-caller-game-id";
+const TS_KEY = "fastpitch-caller-ts";
 const ck = (b: number, s: number) => `${b}-${s}`;
 
 /**
@@ -89,6 +106,9 @@ export default function PitchCaller() {
   const [showSetup, setShowSetup] = useState(false);
   const [pickingPitcher, setPickingPitcher] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
+  // active wristband card (codes for relay); falls back to the default
+  const [cardBuckets, setCardBuckets] =
+    useState<CallCardBuckets>(DEFAULT_CARD_BUCKETS);
   // post-IN-PLAY contact panel: which pitch is awaiting detail
   const [contactFor, setContactFor] = useState<string | null>(null);
   const [contactQuality, setContactQuality] = useState<ContactQuality | null>(
@@ -102,18 +122,30 @@ export default function PitchCaller() {
   const [insightLoading, setInsightLoading] = useState(false);
 
   // true after hydration; gates rendering so SSR and first client render match
-  const loaded = useSyncExternalStore(
+  const hydrated = useSyncExternalStore(
     emptySubscribe,
     () => true,
     () => false
   );
+  // becomes true once we've reconciled with the server (or decided offline)
+  const [resolved, setResolved] = useState(false);
+  const loaded = hydrated && resolved;
 
-  // ── Supabase game row tracking (localStorage stays the live source of truth) ──
+  // ── game row tracking; Supabase is the cross-device source of truth ──
   const gameIdRef = useRef<string | null | undefined>(undefined);
   const idPromiseRef = useRef<Promise<string | null> | null>(null);
   const gameMetaRef = useRef<{ opponent: string | null; teamId: string | null }>(
     { opponent: null, teamId: null }
   );
+
+  const writeCache = (id: string | null) => {
+    try {
+      window.localStorage.setItem(TS_KEY, String(Date.now()));
+      if (id) window.localStorage.setItem(GAME_ID_KEY, id);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const ensureGameId = () => {
     if (gameIdRef.current) return Promise.resolve(gameIdRef.current);
@@ -122,11 +154,7 @@ export default function PitchCaller() {
       idPromiseRef.current = createGameRow(opponent, teamId).then((id) => {
         if (id) {
           gameIdRef.current = id;
-          try {
-            window.localStorage.setItem(GAME_ID_KEY, id);
-          } catch {
-            /* ignore */
-          }
+          writeCache(id);
         }
         idPromiseRef.current = null;
         return id;
@@ -135,20 +163,79 @@ export default function PitchCaller() {
     return idPromiseRef.current;
   };
 
+  // resume: reconcile the local cache with the server's active game
+  useEffect(() => {
+    if (!hydrated) return;
+    let live = true;
+    (async () => {
+      const localId = (() => {
+        try {
+          return window.localStorage.getItem(GAME_ID_KEY);
+        } catch {
+          return null;
+        }
+      })();
+      const localTs = (() => {
+        try {
+          return Number(window.localStorage.getItem(TS_KEY) || 0);
+        } catch {
+          return 0;
+        }
+      })();
+
+      const { online, game: server } = await getActiveGame();
+      if (!live) return;
+
+      if (!online) {
+        // offline — trust whatever's cached locally
+        gameIdRef.current = localId;
+        setResolved(true);
+        return;
+      }
+      if (!server) {
+        // no active game anywhere — clear stale local and start clean
+        try {
+          window.localStorage.removeItem(STORE_KEY);
+          window.localStorage.removeItem(GAME_ID_KEY);
+          window.localStorage.removeItem(TS_KEY);
+        } catch {
+          /* ignore */
+        }
+        gameIdRef.current = null;
+        setGame(EMPTY_GAME);
+        setResolved(true);
+        return;
+      }
+
+      const serverTs = Date.parse(server.updatedAt);
+      const localIsNewer = localId === server.id && localTs > serverTs;
+      if (!localIsNewer && server.state) {
+        // adopt the server's copy (newer, or a different device's game)
+        setGame({ ...EMPTY_GAME, ...server.state, pending: {} });
+        writeCache(server.id);
+      }
+      gameIdRef.current = server.id;
+      gameMetaRef.current = {
+        opponent: server.opponent,
+        teamId: server.teamId,
+      };
+      setResolved(true);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [hydrated]);
+
   // persist: localStorage immediately; Supabase (game + roster) debounced
   useEffect(() => {
     if (!loaded) return;
     try {
       window.localStorage.setItem(STORE_KEY, JSON.stringify(game));
+      window.localStorage.setItem(TS_KEY, String(Date.now()));
     } catch {
       /* storage unavailable */
     }
-    if (gameIdRef.current === undefined) {
-      try {
-        gameIdRef.current = window.localStorage.getItem(GAME_ID_KEY);
-      } catch {
-        gameIdRef.current = null;
-      }
+    if (gameMetaRef.current.opponent == null && game.opponentName) {
       gameMetaRef.current = {
         opponent: game.opponentName,
         teamId: game.teamId,
@@ -158,13 +245,26 @@ export default function PitchCaller() {
       void ensureGameId().then((id) => {
         if (id) void saveGameRow(id, game);
       });
-      // roster sync-back: the saved team absorbs new/edited batters
       if (game.teamId && game.batters.length) {
         void syncTeamBatters(game.teamId, game.batters);
       }
     }, 1500);
     return () => clearTimeout(t);
+    // ensureGameId is a stable closure over refs; game+loaded drive saves
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game, loaded]);
+
+  // load the active wristband card (codes for relay)
+  useEffect(() => {
+    if (!hydrated) return;
+    let live = true;
+    getActiveCard().then((c) => {
+      if (live && c && Object.keys(c.buckets).length) setCardBuckets(c.buckets);
+    });
+    return () => {
+      live = false;
+    };
+  }, [hydrated]);
 
   // first-login onboarding: no pitchers anywhere → prompt to create one
   const checkedFirstRunRef = useRef(false);
@@ -319,7 +419,7 @@ export default function PitchCaller() {
       const type = g.pending.type === t ? undefined : t;
       const call =
         type != null && g.pending.zone != null
-          ? randomCall(type, g.pending.zone) ?? undefined
+          ? randomCall(cardBuckets, type, g.pending.zone) ?? undefined
           : undefined;
       return { ...g, pending: { ...g.pending, type, call } };
     });
@@ -334,7 +434,7 @@ export default function PitchCaller() {
       const zone = g.pending.zone === z ? undefined : z;
       const call =
         zone != null && g.pending.type != null
-          ? randomCall(g.pending.type, zone) ?? undefined
+          ? randomCall(cardBuckets, g.pending.type, zone) ?? undefined
           : undefined;
       return { ...g, pending: { ...g.pending, zone, call } };
     });
@@ -347,7 +447,9 @@ export default function PitchCaller() {
         ...g,
         pending: {
           ...g.pending,
-          call: randomCall(g.pending.type, g.pending.zone) ?? undefined,
+          call:
+            randomCall(cardBuckets, g.pending.type, g.pending.zone) ??
+            undefined,
         },
       };
     });
@@ -495,10 +597,37 @@ export default function PitchCaller() {
     };
     try {
       window.localStorage.removeItem(GAME_ID_KEY);
+      window.localStorage.removeItem(TS_KEY);
     } catch {
       /* ignore */
     }
     void ensureGameId();
+  };
+
+  const endCurrentGame = async () => {
+    if (
+      !window.confirm(
+        "End this game? It moves to history and can be reviewed anytime."
+      )
+    )
+      return;
+    const id = gameIdRef.current;
+    if (id) {
+      // flush any unsaved state first, then close
+      await saveGameRow(id, game);
+      await endGame(id);
+    }
+    gameIdRef.current = null;
+    idPromiseRef.current = null;
+    try {
+      window.localStorage.removeItem(STORE_KEY);
+      window.localStorage.removeItem(GAME_ID_KEY);
+      window.localStorage.removeItem(TS_KEY);
+    } catch {
+      /* ignore */
+    }
+    setGame(EMPTY_GAME);
+    flash("Game ended — saved to history");
   };
 
   /** Reverse the last pitch entirely: record, count, and AB end if it caused one. */
@@ -606,6 +735,13 @@ export default function PitchCaller() {
         </div>
         <div className="flex items-center gap-2">
           <Link
+            href="/history"
+            aria-label="History & scouting"
+            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+          >
+            <History className="size-4" />
+          </Link>
+          <Link
             href="/team"
             aria-label="Coach setup"
             className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
@@ -644,6 +780,18 @@ export default function PitchCaller() {
             "no opponent set"
           )}
         </div>
+        {(game.pitches.length > 0 ||
+          game.pitcherId != null ||
+          game.opponentName != null) && (
+          <button
+            onClick={endCurrentGame}
+            aria-label="End game"
+            className="flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-bold tracking-wide text-muted-foreground hover:bg-accent"
+          >
+            <StopCircle className="size-3.5" />
+            END
+          </button>
+        )}
         <button
           onClick={fetchInsight}
           className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
@@ -1682,6 +1830,11 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
             read as a tendency. This view pools all batters; per-batter
             patterns live in the BATTER tab as sequence, not percentages.
           </div>
+
+          <div className="mx-0.5 mb-2 mt-5 text-xs tracking-widest text-muted-foreground">
+            SEQUENCING <span className="opacity-60">· what finishes hitters</span>
+          </div>
+          <SequencingView pitches={pitches} abResults={game.abResults} />
         </>
       )}
     </div>

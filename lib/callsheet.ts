@@ -1,17 +1,33 @@
 /**
- * Wristband call sheet (NeverMissASign "NC SPARK" card).
- * The coach relays a random 3-digit code; players decode it on the band.
- * Codes are grouped by pitch+location bucket. Fastball has four quadrant
- * buckets; change/drop/curve split only inside vs outside; screw is
- * inside-only on this card.
+ * Wristband call sheet. A "card" maps pitch+location buckets to lists of
+ * relay codes; the coach yells a random code and players decode it on the
+ * band. Cards are stored in Supabase (editable, rotatable). The default
+ * below (NeverMissASign "NC SPARK") is the offline fallback / seed.
  *
- * When the team rotates to a new card, replace CODES here (or, later,
- * make this editable on the coach screen).
+ * The bucket structure is fixed because it mirrors the physical card's
+ * columns; only the codes inside each bucket change when you rotate cards.
  */
 
-export const CALL_SHEET_NAME = "NC SPARK";
+export type CallCardBuckets = Record<string, string[]>;
 
-const CODES: Record<string, string[]> = {
+/** Bucket keys in display order, with human labels for the editor. */
+export const BUCKET_DEFS: { key: string; label: string }[] = [
+  { key: "FBIH", label: "Fastball inside-high" },
+  { key: "FBIL", label: "Fastball inside-low" },
+  { key: "FBOH", label: "Fastball outside-high" },
+  { key: "FBOL", label: "Fastball outside-low" },
+  { key: "CHI", label: "Changeup inside" },
+  { key: "CHO", label: "Changeup outside" },
+  { key: "DPI", label: "Drop inside" },
+  { key: "DPO", label: "Drop outside" },
+  { key: "CRVI", label: "Curve inside" },
+  { key: "CRVO", label: "Curve outside" },
+  { key: "SCREW", label: "Screwball inside" },
+];
+
+export const DEFAULT_CARD_NAME = "NC SPARK";
+
+export const DEFAULT_CARD_BUCKETS: CallCardBuckets = {
   FBIH: ["014", "031", "142", "223", "245", "254", "312", "335", "423", "432", "434", "444", "543"],
   FBIL: ["021", "041", "054", "113", "122", "133", "224", "244", "321", "331", "352", "413", "541"],
   FBOH: ["024", "043", "112", "115", "121", "125", "135", "145", "235", "354", "452", "524", "535"],
@@ -41,15 +57,19 @@ export function callBucket(type: string, zone: number): string | null {
     case "SC":
       return "SCREW";
     default:
-      return null; // custom pitches aren't on this card
+      return null; // custom pitches aren't on the card
   }
 }
 
-/** Random relay code for a call, or null if the card doesn't cover it. */
-export function randomCall(type: string, zone: number): string | null {
+/** Random relay code for a call from a given card, or null if uncovered. */
+export function randomCall(
+  buckets: CallCardBuckets,
+  type: string,
+  zone: number
+): string | null {
   const bucket = callBucket(type, zone);
   if (!bucket) return null;
-  const list = CODES[bucket];
+  const list = buckets[bucket];
   if (!list?.length) return null;
   return list[Math.floor(Math.random() * list.length)];
 }

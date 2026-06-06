@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import PitcherEditor from "@/components/pitcher-editor";
+import CardEditor from "@/components/card-editor";
 import { uid, type Batter, type Hand, type Pitcher, type Team } from "@/lib/types";
 import {
   deletePitcher,
@@ -221,6 +222,12 @@ export default function TeamPage() {
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* ── wristband call card ── */}
+            <div className="mt-6">
+              <SectionLabel>WRISTBAND CARD</SectionLabel>
+              <CardEditor />
             </div>
           </>
         )}
