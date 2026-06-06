@@ -97,6 +97,8 @@ export interface GameState {
   currentAb: number;
   abCounter: number;
   count: { b: number; s: number };
+  /** when true, the next hitter in the order comes up automatically */
+  autoAdvance: boolean;
   pending: { type?: string; zone?: number; call?: string };
   abOver: boolean;
   lastLogged: string | null;
@@ -114,6 +116,7 @@ export const EMPTY_GAME: GameState = {
   currentAb: 0,
   abCounter: 0,
   count: { b: 0, s: 0 },
+  autoAdvance: true,
   pending: {},
   abOver: false,
   lastLogged: null,

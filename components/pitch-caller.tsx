@@ -41,12 +41,14 @@ import {
 import { buildInsightSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import SequencingView from "@/components/sequencing-view";
+import LineupPanel from "@/components/lineup-panel";
 import {
   EMPTY_GAME,
   TRAJ_LABEL,
   ZONES,
   swingOf,
   uid,
+  type Batter,
   type ContactQuality,
   type GameState,
   type Hand,
@@ -100,9 +102,6 @@ export default function PitchCaller() {
   const [tab, setTab] = useState<"call" | "batter" | "game">("call");
   const [viewBatter, setViewBatter] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [jIn, setJIn] = useState("");
-  const [hIn, setHIn] = useState<Hand>("R");
   const [showSetup, setShowSetup] = useState(false);
   const [pickingPitcher, setPickingPitcher] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
@@ -298,6 +297,13 @@ export default function PitchCaller() {
   }, [game.pitchers]);
   const curBatter =
     game.batters.find((b) => b.id === game.currentBatterId) ?? null;
+  const curIdxLive = game.batters.findIndex(
+    (b) => b.id === game.currentBatterId
+  );
+  const onDeckBatter =
+    game.batters.length > 1 && curIdxLive >= 0
+      ? game.batters[(curIdxLive + 1) % game.batters.length]
+      : null;
   const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
 
   // live line for the current pitcher: workload + strike throwing
@@ -372,30 +378,13 @@ export default function PitchCaller() {
   };
 
   /* ── actions ── */
+  // bring a hitter up: starts a fresh AB unless she's already up mid-count
   const bringUp = (batterId: string) =>
-    setGame((g) => ({
-      ...g,
-      currentBatterId: batterId,
-      currentAb: g.abCounter + 1,
-      abCounter: g.abCounter + 1,
-      count: { b: 0, s: 0 },
-      pending: {},
-      abOver: false,
-    }));
-
-  const addBatter = () => {
-    const jersey = jIn.trim();
-    if (!jersey) return;
     setGame((g) => {
-      const exist = g.batters.find((b) => b.jersey === jersey);
-      const id = exist ? exist.id : uid();
-      const batters = exist
-        ? g.batters
-        : [...g.batters, { id, jersey, hand: hIn }];
+      if (batterId === g.currentBatterId && !g.abOver) return g;
       return {
         ...g,
-        batters,
-        currentBatterId: id,
+        currentBatterId: batterId,
         currentAb: g.abCounter + 1,
         abCounter: g.abCounter + 1,
         count: { b: 0, s: 0 },
@@ -403,9 +392,55 @@ export default function PitchCaller() {
         abOver: false,
       };
     });
-    setJIn("");
-    setAdding(false);
+
+  const addLineupBatter = (jersey: string, hand: Hand, name: string) => {
+    const j = jersey.trim();
+    if (!j) return;
+    setGame((g) => {
+      if (g.batters.some((b) => b.jersey === j)) return g; // no dup jersey
+      const nb = { id: uid(), jersey: j, hand, name: name.trim() || undefined };
+      const batters = [...g.batters, nb];
+      // first hitter added becomes the one at bat
+      if (!g.currentBatterId) {
+        return {
+          ...g,
+          batters,
+          currentBatterId: nb.id,
+          currentAb: g.abCounter + 1,
+          abCounter: g.abCounter + 1,
+          count: { b: 0, s: 0 },
+          abOver: false,
+        };
+      }
+      return { ...g, batters };
+    });
   };
+
+  const removeBatter = (id: string) =>
+    setGame((g) => ({
+      ...g,
+      batters: g.batters.filter((b) => b.id !== id),
+      currentBatterId: g.currentBatterId === id ? null : g.currentBatterId,
+    }));
+
+  const moveBatter = (id: string, dir: -1 | 1) =>
+    setGame((g) => {
+      const i = g.batters.findIndex((b) => b.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= g.batters.length) return g;
+      const batters = [...g.batters];
+      [batters[i], batters[j]] = [batters[j], batters[i]];
+      return { ...g, batters };
+    });
+
+  const editBatter = (id: string, patch: Partial<Batter>) =>
+    setGame((g) => ({
+      ...g,
+      batters: g.batters.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    }));
+
+  const toggleAuto = () =>
+    setGame((g) => ({ ...g, autoAdvance: !g.autoAdvance }));
 
   // the call stays selected (highlighted) until the result tags it;
   // pitch + outcome commit together on the result tap. When both type
@@ -470,9 +505,6 @@ export default function PitchCaller() {
               game.count.s >= 2
             ? "K"
             : null;
-    const priorAbs = game.abResults.filter(
-      (r) => r.batterId === game.currentBatterId
-    ).length;
     const curIdx = game.batters.findIndex(
       (b) => b.id === game.currentBatterId
     );
@@ -480,7 +512,8 @@ export default function PitchCaller() {
       game.batters.length > 1 && curIdx >= 0
         ? game.batters[(curIdx + 1) % game.batters.length]
         : null;
-    const autoAdvance = willEnd != null && priorAbs >= 1 && nextBatter != null;
+    // follow the explicit batting order; the coach can switch AUTO off
+    const autoAdvance = willEnd != null && game.autoAdvance && nextBatter != null;
     setGame((g) => {
       if (!g.currentBatterId || g.pending.type == null || g.pending.zone == null)
         return g;
@@ -880,60 +913,18 @@ export default function PitchCaller() {
           )}
         >
         <div className="px-3.5 py-2">
-          {/* roster */}
-          <div className="flex gap-1.5 overflow-x-auto pb-2.5 pt-1">
-            {game.batters.map((b) => {
-              const on = b.id === game.currentBatterId;
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => bringUp(b.id)}
-                  className={cn(
-                    "shrink-0 rounded-lg border px-3.5 py-2.5 text-[15px] font-bold",
-                    on
-                      ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      : "border-border bg-card text-card-foreground hover:bg-accent"
-                  )}
-                >
-                  #{b.jersey}
-                  <span className="ml-1 text-[11px] text-muted-foreground">
-                    {b.hand}
-                  </span>
-                </button>
-              );
-            })}
-            {adding ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <input
-                  autoFocus
-                  value={jIn}
-                  onChange={(e) => setJIn(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addBatter()}
-                  placeholder="#"
-                  className="w-[52px] rounded-lg border border-amber-500 bg-background px-2 py-1.5 font-mono text-[15px] text-foreground outline-none"
-                />
-                <button
-                  onClick={() => setHIn(hIn === "R" ? "L" : "R")}
-                  className="rounded-lg border bg-card px-2.5 py-1.5 font-bold text-card-foreground"
-                >
-                  {hIn}
-                </button>
-                <button
-                  onClick={addBatter}
-                  className="rounded-lg bg-amber-500 px-3 py-1.5 font-bold text-black"
-                >
-                  OK
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setAdding(true)}
-                className="shrink-0 rounded-lg border border-dashed px-3.5 py-1.5 text-[15px] font-bold text-muted-foreground hover:bg-accent"
-              >
-                + BATTER
-              </button>
-            )}
-          </div>
+          {/* lineup: explicit order, current + on-deck, edit/reorder/sub */}
+          <LineupPanel
+            batters={game.batters}
+            currentId={game.currentBatterId}
+            autoAdvance={game.autoAdvance}
+            onSelect={bringUp}
+            onAdd={addLineupBatter}
+            onRemove={removeBatter}
+            onMove={moveBatter}
+            onEdit={editBatter}
+            onToggleAuto={toggleAuto}
+          />
 
           {/* batter + relay + count: fixed slots, nothing shifts mid-pitch */}
           <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border bg-card px-4 py-2.5">
@@ -949,6 +940,11 @@ export default function PitchCaller() {
                   </span>
                 )}
               </div>
+              {onDeckBatter && (
+                <div className="mt-1 text-[11px] text-muted-foreground">
+                  on deck #{onDeckBatter.jersey}
+                </div>
+              )}
             </div>
             <button
               onClick={rerollCall}
@@ -1030,21 +1026,14 @@ export default function PitchCaller() {
               >
                 UNDO
               </button>
-              {(() => {
-                if (game.batters.length < 2) return null;
-                const idx = game.batters.findIndex(
-                  (b) => b.id === game.currentBatterId
-                );
-                const next = game.batters[(idx + 1) % game.batters.length];
-                return (
-                  <button
-                    onClick={() => bringUp(next.id)}
-                    className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-bold text-black"
-                  >
-                    NEXT: #{next.jersey}
-                  </button>
-                );
-              })()}
+              {onDeckBatter && (
+                <button
+                  onClick={() => bringUp(onDeckBatter.id)}
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-bold text-black"
+                >
+                  NEXT: #{onDeckBatter.jersey}
+                </button>
+              )}
             </div>
           )}
 
