@@ -1831,7 +1831,11 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
           <div className="mx-0.5 mb-2 mt-5 text-xs tracking-widest text-muted-foreground">
             SEQUENCING <span className="opacity-60">· what finishes hitters</span>
           </div>
-          <SequencingView pitches={pitches} abResults={game.abResults} />
+          <SequencingView
+            pitches={pitches}
+            abResults={game.abResults}
+            defs={defs}
+          />
         </>
       )}
     </div>

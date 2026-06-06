@@ -241,6 +241,7 @@ export default function DashboardPage() {
                   <SequencingView
                     pitches={pooled.pitches}
                     abResults={pooled.abResults}
+                    defs={defs}
                   />
                 </div>
               </div>

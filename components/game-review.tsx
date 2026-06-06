@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import SequencingView from "@/components/sequencing-view";
+import { STANDARD_PITCHES, type PitchDef } from "@/lib/catalog";
 import {
   ZONES,
   swingOf,
@@ -29,6 +30,14 @@ export default function GameReview({
   abResults?: AbResult[];
 }) {
   const [filter, setFilter] = useState<string | "all">("all");
+
+  const defs = useMemo<PitchDef[]>(() => {
+    const all: PitchDef[] = [];
+    for (const p of pitchers)
+      for (const d of p.pitches)
+        if (!all.some((x) => x.k === d.k)) all.push(d);
+    return all.length ? all : STANDARD_PITCHES;
+  }, [pitchers]);
 
   const shown = useMemo(
     () =>
@@ -146,7 +155,7 @@ export default function GameReview({
         <div className="mb-2 text-xs font-bold tracking-widest text-muted-foreground">
           SEQUENCING · what finishes hitters
         </div>
-        <SequencingView pitches={shown} abResults={abResults} />
+        <SequencingView pitches={shown} abResults={abResults} defs={defs} />
       </div>
 
       {/* per-batter */}
