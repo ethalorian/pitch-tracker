@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   BUCKET_DEFS,
   DEFAULT_CARD_BUCKETS,
@@ -27,6 +28,7 @@ export default function CardEditor() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const loadInto = (c: CallCard) => {
     setSelId(c.id);
@@ -94,7 +96,13 @@ export default function CardEditor() {
   };
 
   const removeCard = async (id: string) => {
-    if (!window.confirm("Delete this card?")) return;
+    const ok = await confirm({
+      title: "Delete this card?",
+      body: "Its relay codes are gone for good.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteCard(id);
     const remaining = cards.filter((c) => c.id !== id);
     setCards(remaining);
@@ -202,13 +210,18 @@ export default function CardEditor() {
               {busy ? "Saving…" : "SAVE CARD"}
             </button>
             {msg && (
-              <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+              <span
+                role="status"
+                className="text-sm font-bold text-amber-600 dark:text-amber-400"
+              >
                 {msg}
               </span>
             )}
           </div>
         </>
       )}
+
+      {confirmDialog}
     </div>
   );
 }

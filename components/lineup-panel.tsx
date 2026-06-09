@@ -92,8 +92,9 @@ export default function LineupPanel({
         </button>
         <button
           onClick={onToggleAuto}
+          aria-pressed={autoAdvance}
           className={cn(
-            "shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold tracking-widest",
+            "press shrink-0 rounded-lg border px-2 py-1.5 text-[11px] font-bold tracking-widest",
             autoAdvance
               ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
               : "border-border text-muted-foreground"
@@ -152,7 +153,7 @@ export default function LineupPanel({
                   <button
                     onClick={() => !editMode && onSelect(b.id)}
                     className={cn(
-                      "flex flex-1 items-center gap-2 rounded-lg border px-2.5 py-2 text-left",
+                      "press flex flex-1 items-center gap-2 rounded-lg border px-2.5 py-2 text-left",
                       on
                         ? "border-amber-500 bg-amber-500/15"
                         : deck

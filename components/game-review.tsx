@@ -178,8 +178,9 @@ function Chip({
   return (
     <button
       onClick={onClick}
+      aria-pressed={on}
       className={cn(
-        "rounded-lg border px-2.5 py-1.5 text-xs font-bold tracking-wide",
+        "press rounded-lg border px-2.5 py-1.5 text-xs font-bold tracking-wide",
         on
           ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
           : "border-border text-muted-foreground hover:bg-accent"

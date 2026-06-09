@@ -45,16 +45,25 @@ export default function LoginPage() {
           <div className="text-xs tracking-widest text-muted-foreground">
             COACHES ONLY — SIGN IN
           </div>
+          <label className="sr-only" htmlFor="login-email">
+            Email
+          </label>
           <input
+            id="login-email"
             type="email"
             required
+            autoFocus
             autoComplete="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="rounded-lg border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-amber-500"
           />
+          <label className="sr-only" htmlFor="login-password">
+            Password
+          </label>
           <input
+            id="login-password"
             type="password"
             required
             autoComplete="current-password"
@@ -64,7 +73,10 @@ export default function LoginPage() {
             className="rounded-lg border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-amber-500"
           />
           {error && (
-            <div className="text-sm text-red-600 dark:text-red-400">
+            <div
+              role="alert"
+              className="rounded-lg border border-red-500/60 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400"
+            >
               {error}
             </div>
           )}

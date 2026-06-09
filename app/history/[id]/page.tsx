@@ -1,9 +1,7 @@
 "use client";
 
 import { use, useEffect, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import AppHeader, { Skeleton } from "@/components/app-header";
 import GameReview from "@/components/game-review";
 import { getGame, type GameRow } from "@/lib/supabase/sync";
 
@@ -40,25 +38,23 @@ export default function GameDetailPage({
 
   return (
     <div className="mx-auto w-full max-w-[680px] pb-24 font-sans">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3.5 py-3">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/history"
-            aria-label="Back to history"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <div className="text-lg font-bold tracking-wide">
-            vs {row?.opponent ?? "Game"}
-          </div>
-        </div>
-        <ThemeToggle />
-      </div>
+      <AppHeader
+        backHref="/history"
+        backLabel="Back to history"
+        title={`vs ${row?.opponent ?? "Game"}`}
+      />
 
       <div className="px-3.5 py-3">
         {loading ? (
-          <div className="p-6 text-center text-muted-foreground">loading…</div>
+          <div role="status" aria-label="Loading game" className="flex flex-col gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+            </div>
+            <Skeleton className="h-44" />
+            <Skeleton className="h-28" />
+          </div>
         ) : !row || !s ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             This game has no logged data.

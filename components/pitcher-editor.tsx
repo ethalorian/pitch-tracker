@@ -135,7 +135,8 @@ export default function PitcherEditor({
             <button
               key={pd.k}
               onClick={() => toggleStandard(pd)}
-              className="rounded-lg border-2 px-3 py-1.5 font-mono text-sm font-bold transition-colors"
+              aria-pressed={on}
+              className="press rounded-lg border-2 px-3 py-1.5 font-mono text-sm font-bold transition-colors"
               style={
                 on
                   ? { borderColor: pd.c, background: pd.c, color: "#0a0c10" }
@@ -200,7 +201,7 @@ export default function PitcherEditor({
       <button
         onClick={save}
         disabled={busy}
-        className="w-full rounded-lg bg-amber-500 py-2.5 font-bold tracking-wide text-black disabled:opacity-50"
+        className="press w-full rounded-lg bg-amber-500 py-2.5 font-bold tracking-wide text-black hover:bg-amber-400 disabled:opacity-50"
       >
         {busy ? "Saving…" : "SAVE PITCHER"}
       </button>

@@ -81,8 +81,8 @@ export default function NewGameSetup({
   };
 
   return (
-    <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-background/90 p-4 pt-12 backdrop-blur-sm">
-      <div className="w-full max-w-[440px] rounded-xl border bg-card p-4">
+    <div className="animate-overlay-in fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-background/90 p-4 pt-12 backdrop-blur-sm">
+      <div className="animate-sheet-in w-full max-w-[440px] rounded-xl border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <div className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
             NEW GAME
@@ -197,7 +197,7 @@ export default function NewGameSetup({
             <button
               onClick={start}
               disabled={busy || pitchers.length === 0}
-              className="w-full rounded-lg bg-amber-500 py-2.5 font-bold tracking-wide text-black disabled:opacity-50"
+              className="press w-full rounded-lg bg-amber-500 py-3 font-bold tracking-wide text-black hover:bg-amber-400 disabled:opacity-50"
             >
               {busy ? "Starting…" : "START GAME"}
             </button>

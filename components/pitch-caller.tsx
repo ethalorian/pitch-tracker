@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Skeleton } from "@/components/app-header";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import NewGameSetup, { type GameSetup } from "@/components/new-game-setup";
 import PitcherEditor from "@/components/pitcher-editor";
 import {
@@ -99,6 +101,7 @@ function buildDefMap(pitchers: Pitcher[]): PitchDef[] {
 
 export default function PitchCaller() {
   const router = useRouter();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [game, setGame] = useState<GameState>(loadGame);
   const [tab, setTab] = useState<"call" | "batter" | "game">("call");
   const [viewBatter, setViewBatter] = useState<string | null>(null);
@@ -283,7 +286,7 @@ export default function PitchCaller() {
 
   const flash = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 1100);
+    setTimeout(() => setToast(null), 1400);
   };
 
   /* ── derived ── */
@@ -639,12 +642,13 @@ export default function PitchCaller() {
   };
 
   const endCurrentGame = async () => {
-    if (
-      !window.confirm(
-        "End this game? It moves to history and can be reviewed anytime."
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "End this game?",
+      body: "It moves to history and can be reviewed anytime. You can't resume it.",
+      confirmLabel: "End game",
+      destructive: true,
+    });
+    if (!ok) return;
     const id = gameIdRef.current;
     if (id) {
       // flush any unsaved state first, then close
@@ -722,8 +726,26 @@ export default function PitchCaller() {
 
   if (!loaded) {
     return (
-      <div className="mx-auto w-full max-w-[480px] p-10 text-center text-muted-foreground">
-        loading…
+      <div className="mx-auto w-full max-w-[480px] px-4 pt-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-lg font-bold tracking-wide">
+            PITCH
+            <span className="text-amber-600 dark:text-amber-400">CALL</span>
+          </div>
+          <Skeleton className="size-9" />
+        </div>
+        <Skeleton className="mb-2.5 h-12" />
+        <Skeleton className="mb-2.5 h-20" />
+        <div className="mb-2.5 grid grid-cols-3 gap-1.5">
+          <Skeleton className="h-14" />
+          <Skeleton className="h-14" />
+          <Skeleton className="h-14" />
+        </div>
+        <Skeleton className="mb-3.5 h-16" />
+        <Skeleton className="h-36" />
+        <div className="sr-only" role="status">
+          Loading game…
+        </div>
       </div>
     );
   }
@@ -771,28 +793,28 @@ export default function PitchCaller() {
           <Link
             href="/dashboard"
             aria-label="Pitcher dashboard"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+            className="press rounded-lg border p-2 text-muted-foreground hover:bg-accent"
           >
             <BarChart3 className="size-4" />
           </Link>
           <Link
             href="/history"
             aria-label="History & scouting"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+            className="press rounded-lg border p-2 text-muted-foreground hover:bg-accent"
           >
             <History className="size-4" />
           </Link>
           <Link
             href="/team"
             aria-label="Coach setup"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+            className="press rounded-lg border p-2 text-muted-foreground hover:bg-accent"
           >
             <Users className="size-4" />
           </Link>
           <ThemeToggle />
           <button
             onClick={() => setShowSetup(true)}
-            className="rounded-lg border px-2.5 py-1.5 text-xs tracking-widest text-muted-foreground hover:bg-accent"
+            className="press rounded-lg border px-2.5 py-2 text-xs font-bold tracking-widest text-muted-foreground hover:bg-accent"
           >
             NEW GAME
           </button>
@@ -803,7 +825,7 @@ export default function PitchCaller() {
               router.push("/login");
               router.refresh();
             }}
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+            className="press rounded-lg border p-2 text-muted-foreground hover:bg-accent"
           >
             <LogOut className="size-4" />
           </button>
@@ -827,7 +849,7 @@ export default function PitchCaller() {
           <button
             onClick={endCurrentGame}
             aria-label="End game"
-            className="flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-bold tracking-wide text-muted-foreground hover:bg-accent"
+            className="press flex shrink-0 items-center gap-1 rounded-lg border px-2 py-2 text-xs font-bold tracking-wide text-muted-foreground hover:border-red-500/60 hover:bg-accent hover:text-red-600 dark:hover:text-red-400"
           >
             <StopCircle className="size-3.5" />
             END
@@ -835,7 +857,7 @@ export default function PitchCaller() {
         )}
         <button
           onClick={fetchInsight}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500 bg-amber-500/10 px-2.5 py-1.5 text-sm font-bold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+          className="press flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500 bg-amber-500/10 px-2.5 py-2 text-sm font-bold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
         >
           <Sparkles className="size-3.5" />
           INSIGHT
@@ -846,8 +868,9 @@ export default function PitchCaller() {
               ? setPickingPitcher((v) => !v)
               : undefined
           }
+          aria-expanded={pickingPitcher}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-bold",
+            "press flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm font-bold",
             pickingPitcher
               ? "border-amber-500 text-amber-600 dark:text-amber-400"
               : "border-border hover:bg-accent"
@@ -900,8 +923,9 @@ export default function PitchCaller() {
               if (k === "batter" && !viewBatter)
                 setViewBatter(game.currentBatterId);
             }}
+            aria-pressed={tab === k}
             className={cn(
-              "flex-1 rounded-lg border py-2 text-sm font-bold tracking-widest transition-colors",
+              "press flex-1 rounded-lg border py-2.5 text-sm font-bold tracking-widest transition-colors",
               tab === k
                 ? "border-amber-500 bg-amber-500 text-black"
                 : "border-border text-muted-foreground hover:bg-accent"
@@ -959,7 +983,9 @@ export default function PitchCaller() {
               disabled={
                 game.pending.type == null || game.pending.zone == null
               }
-              className="min-w-[110px] rounded-lg px-2 py-0.5 text-center hover:bg-accent disabled:hover:bg-transparent"
+              aria-label="Relay code — tap to redraw"
+              title="Tap to redraw a code for the same call"
+              className="press min-w-[110px] rounded-lg px-2 py-0.5 text-center hover:bg-accent disabled:hover:bg-transparent"
             >
               <div className="text-[11px] tracking-widest text-muted-foreground">
                 RELAY
@@ -984,10 +1010,27 @@ export default function PitchCaller() {
               <div className="text-xs tracking-widest text-muted-foreground">
                 COUNT
               </div>
-              <div className="font-mono text-[40px] font-bold leading-none text-amber-600 dark:text-amber-400">
-                {game.count.b}
+              {/* pressure cues: 3 balls = walk risk, 2 strikes = put-away time */}
+              <div className="tnum font-mono text-[40px] font-bold leading-none">
+                <span
+                  className={cn(
+                    game.count.b >= 3
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  )}
+                >
+                  {game.count.b}
+                </span>
                 <span className="text-muted-foreground">-</span>
-                {game.count.s}
+                <span
+                  className={cn(
+                    game.count.s >= 2
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  )}
+                >
+                  {game.count.s}
+                </span>
               </div>
             </div>
           </div>
@@ -1030,14 +1073,14 @@ export default function PitchCaller() {
               </div>
               <button
                 onClick={undoLast}
-                className="rounded-lg border px-2.5 py-1.5 text-xs font-bold tracking-wide text-muted-foreground hover:bg-accent"
+                className="press rounded-lg border px-2.5 py-2 text-xs font-bold tracking-wide text-muted-foreground hover:bg-accent"
               >
                 UNDO
               </button>
               {onDeckBatter && (
                 <button
                   onClick={() => bringUp(onDeckBatter.id)}
-                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-bold text-black"
+                  className="press rounded-lg bg-amber-500 px-4 py-2.5 text-base font-bold text-black hover:bg-amber-400"
                 >
                   NEXT: #{onDeckBatter.jersey}
                 </button>
@@ -1092,7 +1135,8 @@ export default function PitchCaller() {
                 <button
                   key={p.k}
                   onClick={() => pickType(p.k)}
-                  className="rounded-xl border-2 py-4 text-lg font-bold transition-all"
+                  aria-pressed={on}
+                  className="press rounded-xl border-2 py-4 text-lg font-bold transition-all"
                   style={
                     on
                       ? { borderColor: p.c, background: p.c, color: "#0a0c10" }
@@ -1118,8 +1162,9 @@ export default function PitchCaller() {
                 <button
                   key={i}
                   onClick={() => pickZone(i)}
+                  aria-pressed={on}
                   className={cn(
-                    "rounded-xl border-2 py-7 text-[14px] font-semibold uppercase tracking-wide",
+                    "press rounded-xl border-2 py-7 text-[14px] font-semibold uppercase tracking-wide",
                     on
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border bg-card text-foreground/80 hover:brightness-110"
@@ -1148,6 +1193,7 @@ export default function PitchCaller() {
                 <ResultButton
                   key={o}
                   label={l}
+                  tone={o}
                   armed={
                     game.pending.type != null && game.pending.zone != null
                   }
@@ -1167,6 +1213,7 @@ export default function PitchCaller() {
                 <ResultButton
                   key={o}
                   label={l}
+                  tone={o}
                   armed={
                     game.pending.type != null && game.pending.zone != null
                   }
@@ -1184,7 +1231,7 @@ export default function PitchCaller() {
               <button
                 onClick={undoLast}
                 disabled={!game.pitches.length}
-                className="rounded-lg border px-2 py-1 text-[11px] font-bold tracking-wide hover:bg-accent disabled:opacity-30"
+                className="press rounded-lg border px-2.5 py-1.5 text-[11px] font-bold tracking-wide hover:bg-accent disabled:opacity-30"
               >
                 ⌫ UNDO LAST
               </button>
@@ -1235,8 +1282,8 @@ export default function PitchCaller() {
 
       {/* AI insight panel */}
       {insightOpen && (
-        <div className="fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-background/85 p-4 pt-10 backdrop-blur-sm">
-          <div className="w-full max-w-[460px] rounded-xl border bg-card p-4">
+        <div className="animate-overlay-in fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-background/85 p-4 pt-10 backdrop-blur-sm">
+          <div className="animate-sheet-in w-full max-w-[460px] rounded-xl border bg-card p-4">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
                 <Sparkles className="size-4" />
@@ -1287,8 +1334,8 @@ export default function PitchCaller() {
 
       {/* post-IN-PLAY contact detail: hard/weak + trajectory, then tap the field */}
       {contactFor && (
-        <div className="fixed inset-0 z-30 flex items-end justify-center overflow-y-auto bg-background/80 p-4 pb-10 backdrop-blur-sm">
-          <div className="w-full max-w-[440px] rounded-xl border bg-card p-4">
+        <div className="animate-overlay-in fixed inset-0 z-30 flex items-end justify-center overflow-y-auto bg-background/80 p-4 pb-10 backdrop-blur-sm">
+          <div className="animate-sheet-in w-full max-w-[440px] rounded-xl border bg-card p-4">
             <div className="mb-2.5 flex items-center justify-between">
               <div className="text-xs font-bold tracking-widest text-amber-600 dark:text-amber-400">
                 BALL IN PLAY — HOW &amp; WHERE?
@@ -1310,8 +1357,9 @@ export default function PitchCaller() {
                 <button
                   key={q}
                   onClick={() => setContactQuality(q)}
+                  aria-pressed={contactQuality === q}
                   className={cn(
-                    "rounded-xl border-2 py-3 text-base font-bold tracking-wide",
+                    "press rounded-xl border-2 py-3 text-base font-bold tracking-wide",
                     contactQuality === q
                       ? q === "hard"
                         ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
@@ -1329,8 +1377,9 @@ export default function PitchCaller() {
                 <button
                   key={t}
                   onClick={() => setContactTraj(t)}
+                  aria-pressed={contactTraj === t}
                   className={cn(
-                    "rounded-xl border-2 py-3 text-sm font-bold tracking-wide",
+                    "press rounded-xl border-2 py-3 text-sm font-bold tracking-wide",
                     contactTraj === t
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border text-muted-foreground hover:bg-accent"
@@ -1368,21 +1417,41 @@ export default function PitchCaller() {
       )}
 
       {toast && (
-        <div className="animate-pop fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-2 text-[15px] font-bold tracking-wide text-black shadow-lg">
+        <div
+          role="status"
+          aria-live="polite"
+          className="animate-pop fixed bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-2 text-[15px] font-bold tracking-wide text-black shadow-lg"
+        >
           {toast}
         </div>
       )}
+
+      {confirmDialog}
     </div>
   );
 }
 
+/**
+ * Outcome colors mirror the app's semantics everywhere else:
+ * red = contact/danger, blue = swing-and-miss, green = strike for us.
+ */
+const RESULT_TONE: Record<string, string> = {
+  ball: "text-muted-foreground",
+  called: "text-green-600 dark:text-green-400",
+  miss: "text-blue-600 dark:text-blue-400",
+  foul: "text-card-foreground/70",
+  inplay: "text-red-600 dark:text-red-400",
+};
+
 function ResultButton({
   label,
+  tone,
   armed,
   disabled,
   onTap,
 }: {
   label: string;
+  tone: string;
   armed: boolean;
   disabled: boolean;
   onTap: () => void;
@@ -1392,7 +1461,8 @@ function ResultButton({
       onClick={onTap}
       disabled={disabled}
       className={cn(
-        "rounded-xl border bg-card py-3.5 text-[12px] font-bold tracking-wide text-card-foreground hover:bg-accent disabled:opacity-40",
+        "press rounded-xl border bg-card py-5 text-[13px] font-bold tracking-wide hover:bg-accent disabled:opacity-40",
+        RESULT_TONE[tone] ?? "text-card-foreground",
         armed && "animate-pulse-glow"
       )}
     >

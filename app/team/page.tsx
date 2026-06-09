@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import AppHeader, { Skeleton } from "@/components/app-header";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import PitcherEditor from "@/components/pitcher-editor";
 import CardEditor from "@/components/card-editor";
 import { uid, type Batter, type Hand, type Pitcher, type Team } from "@/lib/types";
@@ -31,6 +31,7 @@ export default function TeamPage() {
     null
   );
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   useEffect(() => {
     let live = true;
@@ -49,25 +50,17 @@ export default function TeamPage() {
 
   return (
     <div className="mx-auto w-full max-w-[480px] pb-24 font-sans">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3.5 py-3">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            aria-label="Back to game"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <div className="text-lg font-bold tracking-wide">
-            COACH<span className="text-amber-600 dark:text-amber-400">SETUP</span>
-          </div>
-        </div>
-        <ThemeToggle />
-      </div>
+      <AppHeader title="COACH" accent="SETUP" />
 
       <div className="px-3.5 py-3">
         {loading ? (
-          <div className="p-6 text-center text-muted-foreground">loading…</div>
+          <div role="status" aria-label="Loading setup" className="flex flex-col gap-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
+            <Skeleton className="mt-3 h-6 w-40" />
+            <Skeleton className="h-16" />
+          </div>
         ) : (
           <>
             {/* ── pitchers ── */}
@@ -130,7 +123,13 @@ export default function TeamPage() {
                   <button
                     aria-label={`Delete ${p.name}`}
                     onClick={async () => {
-                      if (!window.confirm(`Delete ${p.name}?`)) return;
+                      const ok = await confirm({
+                        title: `Delete ${p.name}?`,
+                        body: "Her repertoire is removed from future games. Past game logs are kept.",
+                        confirmLabel: "Delete",
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       await deletePitcher(p.id);
                       setPitchers((xs) => xs.filter((x) => x.id !== p.id));
                     }}
@@ -192,12 +191,13 @@ export default function TeamPage() {
                     <button
                       aria-label={`Delete ${t.name}`}
                       onClick={async () => {
-                        if (
-                          !window.confirm(
-                            `Delete ${t.name} and its saved roster? Past game logs are kept.`
-                          )
-                        )
-                          return;
+                        const ok = await confirm({
+                          title: `Delete ${t.name}?`,
+                          body: "Its saved roster is removed. Past game logs are kept.",
+                          confirmLabel: "Delete",
+                          destructive: true,
+                        });
+                        if (!ok) return;
                         await deleteTeam(t.id);
                         setTeams((xs) => xs.filter((x) => x.id !== t.id));
                         if (editingTeam?.id === t.id) setEditingTeam(null);
@@ -232,6 +232,8 @@ export default function TeamPage() {
           </>
         )}
       </div>
+
+      {confirmDialog}
     </div>
   );
 }

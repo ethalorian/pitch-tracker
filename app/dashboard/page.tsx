@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import AppHeader, { Skeleton } from "@/components/app-header";
 import SequencingView from "@/components/sequencing-view";
 import { listGamesFull, listPitchers } from "@/lib/supabase/sync";
 import {
@@ -91,25 +89,22 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-[760px] pb-24 font-sans">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3.5 py-3">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            aria-label="Back to game"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <div className="text-lg font-bold tracking-wide">
-            PITCHER<span className="text-amber-600 dark:text-amber-400">DASH</span>
-          </div>
-        </div>
-        <ThemeToggle />
-      </div>
+      <AppHeader title="PITCHER" accent="DASH" />
 
       <div className="px-3.5 py-3">
         {loading ? (
-          <div className="p-6 text-center text-muted-foreground">loading…</div>
+          <div role="status" aria-label="Loading dashboard">
+            <div className="mb-3 flex gap-1.5">
+              <Skeleton className="h-10 w-24" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+            <div className="mb-4 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-14" />
+              ))}
+            </div>
+            <Skeleton className="h-48" />
+          </div>
         ) : pitchers.length === 0 ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             No pitchers yet. Add them on the coach screen.
@@ -121,8 +116,9 @@ export default function DashboardPage() {
                 <button
                   key={p.id}
                   onClick={() => setSel(p.id)}
+                  aria-pressed={p.id === sel}
                   className={cn(
-                    "rounded-lg border px-3 py-2 text-sm font-bold",
+                    "press rounded-lg border px-3 py-2 text-sm font-bold",
                     p.id === sel
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border text-foreground hover:bg-accent"

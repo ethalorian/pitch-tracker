@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Circle, Dot } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ChevronRight, Circle, Dot } from "lucide-react";
+import AppHeader, { Skeleton } from "@/components/app-header";
 import { listGames, listTeams, type GameRow } from "@/lib/supabase/sync";
 import type { Team } from "@/lib/types";
 
@@ -52,25 +52,16 @@ export default function HistoryPage() {
 
   return (
     <div className="mx-auto w-full max-w-[640px] pb-24 font-sans">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3.5 py-3">
-        <div className="flex items-center gap-2">
-          <Link
-            href="/"
-            aria-label="Back to game"
-            className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <div className="text-lg font-bold tracking-wide">
-            HISTORY<span className="text-amber-600 dark:text-amber-400">+SCOUT</span>
-          </div>
-        </div>
-        <ThemeToggle />
-      </div>
+      <AppHeader title="HISTORY" accent="+SCOUT" />
 
       <div className="px-3.5 py-3">
         {loading ? (
-          <div className="p-6 text-center text-muted-foreground">loading…</div>
+          <div role="status" aria-label="Loading games" className="flex flex-col gap-2">
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
+            <Skeleton className="h-16" />
+          </div>
         ) : games.length === 0 ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             No games yet. Start one from the game screen — it&apos;ll appear here
