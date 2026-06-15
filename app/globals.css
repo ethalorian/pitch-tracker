@@ -3,73 +3,83 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   BROADCAST theme — Statcast navy + scoreboard amber.
+   Hue ~256 (blue-navy) carries every neutral so surfaces read
+   as deep field-at-night rather than dead gray. Amber is the
+   energy accent and the primary CTA. Light = clean "press box".
+   ============================================================ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.75rem;
+  /* press box: cool, bright, navy ink */
+  --background: oklch(0.985 0.004 250);
+  --foreground: oklch(0.2 0.035 258);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0.035 258);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.2 0.035 258);
+  /* primary = scoreboard amber, dark navy ink on top */
+  --primary: oklch(0.74 0.15 73);
+  --primary-foreground: oklch(0.22 0.045 262);
+  --secondary: oklch(0.955 0.006 250);
+  --secondary-foreground: oklch(0.26 0.04 258);
+  --muted: oklch(0.955 0.006 250);
+  --muted-foreground: oklch(0.5 0.025 256);
+  --accent: oklch(0.94 0.012 250);
+  --accent-foreground: oklch(0.24 0.04 258);
+  --destructive: oklch(0.58 0.21 25);
+  --border: oklch(0.88 0.012 252);
+  --input: oklch(0.9 0.012 252);
+  --ring: oklch(0.74 0.15 73);
+  /* charts mirror the pitch palette: FB CH DR CU SC */
+  --chart-1: oklch(0.66 0.21 28);
+  --chart-2: oklch(0.74 0.12 205);
+  --chart-3: oklch(0.74 0.16 158);
+  --chart-4: oklch(0.62 0.2 300);
+  --chart-5: oklch(0.8 0.16 78);
+  --sidebar: oklch(0.97 0.006 250);
+  --sidebar-foreground: oklch(0.2 0.035 258);
+  --sidebar-primary: oklch(0.74 0.15 73);
+  --sidebar-primary-foreground: oklch(0.22 0.045 262);
+  --sidebar-accent: oklch(0.94 0.012 250);
+  --sidebar-accent-foreground: oklch(0.24 0.04 258);
+  --sidebar-border: oklch(0.88 0.012 252);
+  --sidebar-ring: oklch(0.74 0.15 73);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* night game: deep navy field, layered surfaces, amber lights */
+  --background: oklch(0.17 0.028 258);
+  --foreground: oklch(0.97 0.008 250);
+  --card: oklch(0.22 0.032 258);
+  --card-foreground: oklch(0.97 0.008 250);
+  --popover: oklch(0.21 0.032 258);
+  --popover-foreground: oklch(0.97 0.008 250);
+  --primary: oklch(0.82 0.16 76);
+  --primary-foreground: oklch(0.2 0.045 262);
+  --secondary: oklch(0.28 0.034 258);
+  --secondary-foreground: oklch(0.97 0.008 250);
+  --muted: oklch(0.27 0.03 258);
+  --muted-foreground: oklch(0.74 0.03 252);
+  --accent: oklch(0.32 0.04 258);
+  --accent-foreground: oklch(0.98 0.008 250);
+  --destructive: oklch(0.68 0.2 24);
+  --border: oklch(0.7 0.05 256 / 18%);
+  --input: oklch(0.7 0.05 256 / 24%);
+  --ring: oklch(0.82 0.16 76);
+  --chart-1: oklch(0.7 0.22 28);
+  --chart-2: oklch(0.78 0.13 205);
+  --chart-3: oklch(0.78 0.17 158);
+  --chart-4: oklch(0.68 0.21 300);
+  --chart-5: oklch(0.84 0.16 80);
+  --sidebar: oklch(0.2 0.03 258);
+  --sidebar-foreground: oklch(0.97 0.008 250);
+  --sidebar-primary: oklch(0.82 0.16 76);
+  --sidebar-primary-foreground: oklch(0.2 0.045 262);
+  --sidebar-accent: oklch(0.32 0.04 258);
+  --sidebar-accent-foreground: oklch(0.98 0.008 250);
+  --sidebar-border: oklch(0.7 0.05 256 / 18%);
+  --sidebar-ring: oklch(0.82 0.16 76);
 }
 
 @theme inline {
@@ -203,5 +213,31 @@
   }
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+  /* scoreboard brand: faint amber halo behind the wordmark (dark only) */
+  .brand-glow {
+    text-shadow: 0 0 18px oklch(0.82 0.16 76 / 0.35);
+  }
+  :root:not(.dark) .brand-glow {
+    text-shadow: none;
+  }
+  /* scoreboard tile: amber hairline along the top edge of a stat card */
+  .tile-accent {
+    position: relative;
+    overflow: hidden;
+  }
+  .tile-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: var(--primary);
+    opacity: 0.85;
+  }
+  /* big scoreboard numerals */
+  .scoreboard {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    font-feature-settings: "tnum" 1;
   }
 }

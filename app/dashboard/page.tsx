@@ -251,11 +251,13 @@ export default function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border bg-card px-2 py-1.5 text-center">
-      <div className="text-[9px] tracking-widest text-muted-foreground">
+    <div className="tile-accent rounded-xl border border-border/70 bg-card px-2 py-2 text-center">
+      <div className="text-[9px] font-semibold tracking-widest text-muted-foreground">
         {label}
       </div>
-      <div className="font-mono text-lg font-bold text-foreground">{value}</div>
+      <div className="scoreboard font-mono text-xl font-extrabold text-primary">
+        {value}
+      </div>
     </div>
   );
 }

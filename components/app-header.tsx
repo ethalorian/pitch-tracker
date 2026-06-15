@@ -21,20 +21,21 @@ export default function AppHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-3.5 py-2.5 backdrop-blur">
-      <div className="flex min-w-0 items-center gap-2">
+    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/70 bg-background/80 px-3.5 py-2.5 backdrop-blur-md">
+      <div className="flex min-w-0 items-center gap-2.5">
         <Link
           href={backHref}
           aria-label={backLabel}
-          className="press rounded-lg border p-2 text-muted-foreground hover:bg-accent"
+          className="press rounded-lg border border-border/70 p-2 text-muted-foreground hover:border-primary/60 hover:bg-accent hover:text-foreground"
         >
           <ArrowLeft className="size-5" />
         </Link>
-        <div className="truncate text-lg font-bold tracking-wide">
-          {title}
-          {accent && (
-            <span className="text-amber-600 dark:text-amber-400">{accent}</span>
-          )}
+        <div className="flex min-w-0 items-center gap-2">
+          <span aria-hidden className="h-5 w-1 shrink-0 rounded-full bg-primary" />
+          <div className="brand-glow truncate text-lg font-extrabold uppercase tracking-[0.14em]">
+            {title}
+            {accent && <span className="text-primary">{accent}</span>}
+          </div>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">

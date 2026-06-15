@@ -34,9 +34,9 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center text-2xl font-bold tracking-wide">
+        <div className="brand-glow mb-6 text-center text-3xl font-extrabold uppercase tracking-[0.16em]">
           PITCH
-          <span className="text-amber-600 dark:text-amber-400">CALL</span>
+          <span className="text-primary">CALL</span>
         </div>
         <form
           onSubmit={signIn}

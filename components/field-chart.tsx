@@ -57,14 +57,14 @@ export default function FieldChart({
       {/* outfield fan */}
       <path
         d="M 50 72 L 6.2 28.2 A 62 62 0 0 1 93.8 28.2 Z"
-        fill="rgba(54, 214, 122, 0.10)"
+        fill="rgba(38, 197, 142, 0.13)"
         stroke="var(--border)"
         strokeWidth="0.8"
       />
       {/* infield dirt — radius 36 so the full diamond (2B at r≈32) sits inside */}
       <path
         d="M 50 72 L 24.5 46.5 A 36 36 0 0 1 75.5 46.5 Z"
-        fill="rgba(255, 178, 90, 0.14)"
+        fill="rgba(245, 175, 70, 0.18)"
         stroke="var(--border)"
         strokeWidth="0.6"
       />

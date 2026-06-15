@@ -353,22 +353,62 @@ export default function PitchCaller() {
     return { zones, combos };
   }, [game.pitches, game.currentBatterId]);
 
+  // Decision SUPPORT, not prescription: surface where THIS hitter is cold
+  // (swings through) and hot (squares up) — but stay quiet until the read is
+  // real. We never tell the coach what to throw; we arm her own read.
+  const READ_MIN_SWINGS = 3; // total swing events before we say anything
+  const COMBO_MIN = 2; // a single combo needs this many to be "real"
   const advice = useMemo(() => {
     const list = Object.values(batterHeat.combos);
-    let avoid: (typeof list)[number] | null = null;
-    let throwRec: (typeof list)[number] | null = null;
+    const totalSwings = list.reduce((n, c) => n + c.contact + c.miss, 0);
+
+    // per-pitch-type net signal vs this batter (summed across zones)
+    const byType: Record<
+      string,
+      { type: string; miss: number; contact: number }
+    > = {};
     for (const c of list) {
-      // she's hitting it there → stay away
-      if (c.contact > 0 && (!avoid || c.contact > avoid.contact)) avoid = c;
-      // she's swinging through it there → go back to it
-      if (
-        c.miss > c.contact &&
-        (!throwRec || c.miss - c.contact > throwRec.miss - throwRec.contact)
-      )
-        throwRec = c;
+      const t = (byType[c.type] = byType[c.type] ?? {
+        type: c.type,
+        miss: 0,
+        contact: 0,
+      });
+      t.miss += c.miss;
+      t.contact += c.contact;
     }
-    return { avoid, throwRec };
+
+    // cold = strongest swing-and-miss combo; hot = strongest hard-contact combo
+    let cold: (typeof list)[number] | null = null;
+    let hot: (typeof list)[number] | null = null;
+    for (const c of list) {
+      if (
+        c.miss >= COMBO_MIN &&
+        c.miss > c.contact &&
+        (!cold || c.miss - c.contact > cold.miss - cold.contact)
+      )
+        cold = c;
+      if (
+        c.contact >= COMBO_MIN &&
+        c.contact > c.miss &&
+        (!hot || c.contact > hot.contact)
+      )
+        hot = c;
+    }
+
+    return { byType, cold, hot, totalSwings, hasRead: totalSwings >= READ_MIN_SWINGS };
   }, [batterHeat]);
+
+  /** Per-pitch glance signal for the arsenal buttons, only when real. */
+  const pitchSignal = (
+    k: string
+  ): { tone: "cold" | "hot"; n: number } | null => {
+    const t = advice.byType[k];
+    if (!t) return null;
+    if (t.miss + t.contact < COMBO_MIN) return null;
+    if (t.miss > t.contact) return { tone: "cold", n: t.miss };
+    if (t.contact > t.miss) return { tone: "hot", n: t.contact };
+    return null;
+  };
 
   /** zone heat → background: red = contact, blue = whiffs, deeper = more */
   const zoneBg = (zone: number): string | undefined => {
@@ -379,6 +419,17 @@ export default function PitchCaller() {
       return `rgba(239, 68, 68, ${alpha(h.contact)})`;
     if (h.miss > 0) return `rgba(59, 130, 246, ${alpha(h.miss)})`;
     return undefined;
+  };
+
+  /** zone read for the corner glyph: hard contact (●) vs whiffs (○). */
+  const zoneRead = (
+    zone: number
+  ): { tone: "cold" | "hot"; n: number } | null => {
+    const h = batterHeat.zones[zone];
+    if (!h) return null;
+    if (h.contact >= h.miss && h.contact > 0) return { tone: "hot", n: h.contact };
+    if (h.miss > 0) return { tone: "cold", n: h.miss };
+    return null;
   };
 
   /* ── actions ── */
@@ -1088,26 +1139,24 @@ export default function PitchCaller() {
             </div>
           )}
 
-          {/* predictive read: one fixed-height line, never shifts the layout */}
-          {curBatter && (
-            <div className="mb-2.5 flex h-9 items-center gap-3 overflow-x-auto whitespace-nowrap rounded-xl border bg-card px-3 font-mono text-xs">
-              {advice.throwRec && (
+          {/* her read: factual signal, not a command — and silent until real.
+              COLD = she swings through it (○ whiffs); HOT = she squares it
+              up (● hard contact). You make the call. */}
+          {curBatter && advice.hasRead && (advice.cold || advice.hot) && (
+            <div className="animate-pop mb-2.5 flex h-9 items-center gap-3 overflow-x-auto whitespace-nowrap rounded-xl border bg-card px-3 font-mono text-xs">
+              <span className="shrink-0 text-[10px] tracking-widest text-muted-foreground">
+                READ
+              </span>
+              {advice.cold && (
                 <span className="font-bold text-blue-600 dark:text-blue-400">
-                  THROW {advice.throwRec.type}·
-                  {ZONES[advice.throwRec.zone].toUpperCase()} ×
-                  {advice.throwRec.miss}
+                  COLD {advice.cold.type}·
+                  {ZONES[advice.cold.zone].toUpperCase()} ○{advice.cold.miss}
                 </span>
               )}
-              {advice.avoid && (
+              {advice.hot && (
                 <span className="font-bold text-red-600 dark:text-red-400">
-                  AVOID {advice.avoid.type}·
-                  {ZONES[advice.avoid.zone].toUpperCase()} ×
-                  {advice.avoid.contact}
-                </span>
-              )}
-              {!advice.throwRec && !advice.avoid && (
-                <span className="text-muted-foreground/50">
-                  no read on her yet
+                  HOT {advice.hot.type}·
+                  {ZONES[advice.hot.zone].toUpperCase()} ●{advice.hot.contact}
                 </span>
               )}
             </div>
@@ -1131,12 +1180,20 @@ export default function PitchCaller() {
           >
             {repertoire.map((p) => {
               const on = game.pending.type === p.k;
+              const sig = on ? null : pitchSignal(p.k);
               return (
                 <button
                   key={p.k}
                   onClick={() => pickType(p.k)}
                   aria-pressed={on}
-                  className="press rounded-xl border-2 py-4 text-lg font-bold transition-all"
+                  aria-label={
+                    sig
+                      ? `${p.name}, batter ${
+                          sig.tone === "cold" ? "whiffs" : "hits hard"
+                        } ${sig.n}`
+                      : p.name
+                  }
+                  className="press relative rounded-xl border-2 py-4 text-lg font-bold transition-all"
                   style={
                     on
                       ? { borderColor: p.c, background: p.c, color: "#0a0c10" }
@@ -1144,6 +1201,19 @@ export default function PitchCaller() {
                   }
                 >
                   {p.k}
+                  {sig && (
+                    <span
+                      className={cn(
+                        "tnum absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
+                        sig.tone === "cold"
+                          ? "bg-blue-500/20 text-blue-600 dark:text-blue-300"
+                          : "bg-red-500/20 text-red-600 dark:text-red-300"
+                      )}
+                    >
+                      {sig.tone === "cold" ? "○" : "●"}
+                      {sig.n}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1152,19 +1222,34 @@ export default function PitchCaller() {
           {/* location — four quadrants, no middle: you don't call meatballs */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
             <span>② LOCATION</span>
-            <span className="opacity-60">relative to batter</span>
+            {curBatter && advice.hasRead ? (
+              <span className="flex items-center gap-2 opacity-80">
+                <span className="text-blue-600 dark:text-blue-400">○ whiff</span>
+                <span className="text-red-600 dark:text-red-400">● hard</span>
+              </span>
+            ) : (
+              <span className="opacity-60">relative to batter</span>
+            )}
           </div>
           <div className="mb-3.5 grid grid-cols-2 gap-1.5">
             {QUADRANTS.map((i) => {
               const on = game.pending.zone === i;
               const bg = on ? undefined : zoneBg(i);
+              const zr = on ? null : zoneRead(i);
               return (
                 <button
                   key={i}
                   onClick={() => pickZone(i)}
                   aria-pressed={on}
+                  aria-label={
+                    zr
+                      ? `${ZONES[i]}, batter ${
+                          zr.tone === "cold" ? "whiffs" : "hits hard"
+                        } ${zr.n}`
+                      : ZONES[i]
+                  }
                   className={cn(
-                    "press rounded-xl border-2 py-7 text-[14px] font-semibold uppercase tracking-wide",
+                    "press relative rounded-xl border-2 py-7 text-[14px] font-semibold uppercase tracking-wide",
                     on
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border bg-card text-foreground/80 hover:brightness-110"
@@ -1172,6 +1257,19 @@ export default function PitchCaller() {
                   style={bg ? { background: bg } : undefined}
                 >
                   {ZONES[i]}
+                  {zr && (
+                    <span
+                      className={cn(
+                        "tnum absolute right-1.5 top-1.5 text-[11px] font-bold leading-none",
+                        zr.tone === "cold"
+                          ? "text-blue-600 dark:text-blue-300"
+                          : "text-red-600 dark:text-red-300"
+                      )}
+                    >
+                      {zr.tone === "cold" ? "○" : "●"}
+                      {zr.n}
+                    </span>
+                  )}
                 </button>
               );
             })}
