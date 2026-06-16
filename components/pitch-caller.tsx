@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
+  ChevronDown,
   History,
   LogOut,
   RefreshCw,
@@ -107,6 +108,7 @@ export default function PitchCaller() {
   const [viewBatter, setViewBatter] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [showLineup, setShowLineup] = useState(false); // heads-up: lineup tucked away
   const [pickingPitcher, setPickingPitcher] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
   // active wristband card (codes for relay); falls back to the default
@@ -996,73 +998,50 @@ export default function PitchCaller() {
           )}
         >
         <div className="px-3.5 py-2">
-          {/* lineup: explicit order, current + on-deck, edit/reorder/sub */}
-          <LineupPanel
-            batters={game.batters}
-            currentId={game.currentBatterId}
-            autoAdvance={game.autoAdvance}
-            onSelect={bringUp}
-            onAdd={addLineupBatter}
-            onRemove={removeBatter}
-            onMove={moveBatter}
-            onEdit={editBatter}
-            onToggleAuto={toggleAuto}
-          />
-
-          {/* batter + relay + count: fixed slots, nothing shifts mid-pitch */}
-          <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border bg-card px-4 py-2.5">
-            <div className="min-w-[72px]">
-              <div className="text-xs tracking-widest text-muted-foreground">
+          {/* ── HEADS-UP: who's up + the count, oversized and unmissable.
+              Lineup management and workload are demoted so the screen has
+              one clear job per glance. ── */}
+          <div className="mb-2 flex items-stretch gap-2">
+            <button
+              onClick={() => setShowLineup((v) => !v)}
+              aria-expanded={showLineup}
+              aria-label="At bat — tap to open lineup"
+              className="press flex flex-1 flex-col justify-center rounded-2xl border bg-card px-4 py-3 text-left hover:bg-accent"
+            >
+              <div className="text-[11px] tracking-widest text-muted-foreground">
                 AT BAT
               </div>
-              <div className="text-[26px] font-bold leading-none">
-                {curBatter ? `#${curBatter.jersey}` : "—"}
+              <div className="flex items-baseline gap-1.5 leading-none">
+                <span className="text-[40px] font-extrabold leading-none">
+                  {curBatter ? `#${curBatter.jersey}` : "—"}
+                </span>
                 {curBatter && (
-                  <span className="ml-1.5 text-sm text-muted-foreground">
+                  <span className="text-base font-bold text-muted-foreground">
                     {curBatter.hand}HH
                   </span>
                 )}
               </div>
-              {onDeckBatter && (
-                <div className="mt-1 text-[11px] text-muted-foreground">
-                  on deck #{onDeckBatter.jersey}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={rerollCall}
-              disabled={
-                game.pending.type == null || game.pending.zone == null
-              }
-              aria-label="Relay code — tap to redraw"
-              title="Tap to redraw a code for the same call"
-              className="press min-w-[110px] rounded-lg px-2 py-0.5 text-center hover:bg-accent disabled:hover:bg-transparent"
-            >
-              <div className="text-[11px] tracking-widest text-muted-foreground">
-                RELAY
+              <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span>
+                  {onDeckBatter
+                    ? `on deck #${onDeckBatter.jersey}`
+                    : "tap to set lineup"}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "size-3 transition-transform",
+                    showLineup && "rotate-180"
+                  )}
+                />
               </div>
-              {game.pending.type != null && game.pending.zone != null ? (
-                game.pending.call ? (
-                  <div className="animate-pop font-mono text-[34px] font-bold leading-none tracking-[0.2em] text-amber-600 dark:text-amber-400">
-                    {game.pending.call}
-                  </div>
-                ) : (
-                  <div className="py-1.5 text-xs font-bold leading-none text-red-600 dark:text-red-400">
-                    NOT ON CARD
-                  </div>
-                )
-              ) : (
-                <div className="font-mono text-[34px] font-bold leading-none tracking-[0.2em] text-muted-foreground/25">
-                  ···
-                </div>
-              )}
             </button>
-            <div className="min-w-[72px] text-right">
-              <div className="text-xs tracking-widest text-muted-foreground">
+
+            <div className="flex min-w-[150px] flex-col items-center justify-center rounded-2xl border bg-card px-3 py-2">
+              <div className="text-[11px] tracking-widest text-muted-foreground">
                 COUNT
               </div>
               {/* pressure cues: 3 balls = walk risk, 2 strikes = put-away time */}
-              <div className="tnum font-mono text-[40px] font-bold leading-none">
+              <div className="tnum scoreboard font-mono text-[64px] font-extrabold leading-none">
                 <span
                   className={cn(
                     game.count.b >= 3
@@ -1072,7 +1051,7 @@ export default function PitchCaller() {
                 >
                   {game.count.b}
                 </span>
-                <span className="text-muted-foreground">-</span>
+                <span className="text-muted-foreground/40">-</span>
                 <span
                   className={cn(
                     game.count.s >= 2
@@ -1086,35 +1065,82 @@ export default function PitchCaller() {
             </div>
           </div>
 
-          {/* live pitcher line: workload + strike throwing */}
-          <div className="mb-2.5 grid grid-cols-3 gap-1.5">
-            {(
-              [
-                ["PITCHES", pitcherStats.total],
-                [
-                  "STRIKE %",
-                  pitcherStats.strikePct != null
-                    ? `${pitcherStats.strikePct}`
-                    : "—",
-                ],
-                [
-                  "1ST-PITCH K %",
-                  pitcherStats.fpsPct != null ? `${pitcherStats.fpsPct}` : "—",
-                ],
-              ] as const
-            ).map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-xl border bg-card px-2 py-1.5 text-center"
-              >
-                <div className="text-[10px] tracking-widest text-muted-foreground">
-                  {label}
-                </div>
-                <div className="font-mono text-xl font-bold leading-tight text-foreground">
-                  {value}
-                </div>
-              </div>
-            ))}
+          {/* lineup management: tucked away, one tap from the hero */}
+          {showLineup && (
+            <div className="animate-sheet-in mb-2.5 rounded-xl border bg-card/60 p-2">
+              <LineupPanel
+                batters={game.batters}
+                currentId={game.currentBatterId}
+                autoAdvance={game.autoAdvance}
+                onSelect={(id) => {
+                  bringUp(id);
+                  setShowLineup(false);
+                }}
+                onAdd={addLineupBatter}
+                onRemove={removeBatter}
+                onMove={moveBatter}
+                onEdit={editBatter}
+                onToggleAuto={toggleAuto}
+              />
+            </div>
+          )}
+
+          {/* RELAY: the code you read aloud — full-width, big when armed */}
+          <button
+            onClick={rerollCall}
+            disabled={game.pending.type == null || game.pending.zone == null}
+            aria-label="Relay code — tap to redraw"
+            title="Tap to redraw a code for the same call"
+            className="press mb-2 flex w-full items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-2.5 hover:bg-accent disabled:hover:bg-card"
+          >
+            <span className="text-[11px] tracking-widest text-muted-foreground">
+              RELAY
+            </span>
+            {game.pending.type != null && game.pending.zone != null ? (
+              game.pending.call ? (
+                <span className="animate-pop font-mono text-5xl font-extrabold leading-none tracking-[0.18em] text-amber-600 dark:text-amber-400">
+                  {game.pending.call}
+                </span>
+              ) : (
+                <span className="text-sm font-bold text-red-600 dark:text-red-400">
+                  NOT ON CARD
+                </span>
+              )
+            ) : (
+              <span className="text-xs font-semibold text-muted-foreground/50">
+                pick pitch + spot
+              </span>
+            )}
+          </button>
+
+          {/* workload: one quiet line, not three competing tiles */}
+          <div className="mb-2.5 flex items-center justify-center gap-3 text-[11px] font-medium tracking-wide text-muted-foreground">
+            <span className="tnum">
+              <span className="font-bold text-foreground">
+                {pitcherStats.total}
+              </span>{" "}
+              P
+            </span>
+            <span aria-hidden className="opacity-30">
+              ·
+            </span>
+            <span className="tnum">
+              <span className="font-bold text-foreground">
+                {pitcherStats.strikePct != null
+                  ? `${pitcherStats.strikePct}%`
+                  : "—"}
+              </span>{" "}
+              STR
+            </span>
+            <span aria-hidden className="opacity-30">
+              ·
+            </span>
+            <span className="tnum">
+              <span className="font-bold text-foreground">
+                {pitcherStats.fpsPct != null ? `${pitcherStats.fpsPct}%` : "—"}
+              </span>{" "}
+              1ST-K
+            </span>
           </div>
 
           {game.abOver && (
@@ -1193,7 +1219,7 @@ export default function PitchCaller() {
                         } ${sig.n}`
                       : p.name
                   }
-                  className="press relative rounded-xl border-2 py-4 text-lg font-bold transition-all"
+                  className="press relative rounded-2xl border-2 py-5 text-2xl font-extrabold transition-all"
                   style={
                     on
                       ? { borderColor: p.c, background: p.c, color: "#0a0c10" }
@@ -1249,7 +1275,7 @@ export default function PitchCaller() {
                       : ZONES[i]
                   }
                   className={cn(
-                    "press relative rounded-xl border-2 py-7 text-[14px] font-semibold uppercase tracking-wide",
+                    "press relative rounded-2xl border-2 py-9 text-base font-bold uppercase tracking-wide",
                     on
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border bg-card text-foreground/80 hover:brightness-110"
@@ -1559,7 +1585,7 @@ function ResultButton({
       onClick={onTap}
       disabled={disabled}
       className={cn(
-        "press rounded-xl border bg-card py-5 text-[13px] font-bold tracking-wide hover:bg-accent disabled:opacity-40",
+        "press rounded-2xl border bg-card py-6 text-sm font-extrabold tracking-wide hover:bg-accent disabled:opacity-40",
         RESULT_TONE[tone] ?? "text-card-foreground",
         armed && "animate-pulse-glow"
       )}
@@ -1680,9 +1706,9 @@ function BatterView({
               key={b.id}
               onClick={() => setViewBatter(b.id)}
               className={cn(
-                "shrink-0 rounded-lg border px-3 py-1.5 text-[15px] font-bold",
+                "press shrink-0 rounded-2xl border px-3.5 py-2 text-[15px] font-bold",
                 on
-                  ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  ? "border-primary bg-primary/15 text-primary"
                   : "border-border bg-card text-card-foreground hover:bg-accent"
               )}
             >
@@ -1698,9 +1724,13 @@ function BatterView({
         </div>
       ) : (
         <>
-          <div className="mb-1 text-[22px] font-bold">
-            #{batter.jersey}
-            {batter.name && <span className="ml-2">{batter.name}</span>}{" "}
+          <div className="mb-1 flex items-baseline gap-2">
+            <span className="scoreboard font-mono text-3xl font-extrabold leading-none">
+              #{batter.jersey}
+            </span>
+            {batter.name && (
+              <span className="text-lg font-bold leading-none">{batter.name}</span>
+            )}
             <span className="text-sm text-muted-foreground">
               {batter.hand}HH · {mine.length} pitches · {abs.length} AB
             </span>
@@ -1708,7 +1738,7 @@ function BatterView({
 
           {(hits.length > 0 || whiffs.length > 0) && (
             <div className="mb-3.5 mt-2 grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-red-500/60 bg-card px-3 py-2.5">
+              <div className="rounded-2xl border border-red-500/60 bg-card px-3 py-2.5">
                 <div className="mb-1.5 text-[11px] font-bold tracking-widest text-red-600 dark:text-red-400">
                   SHE&apos;S ON THESE
                 </div>
@@ -1732,7 +1762,7 @@ function BatterView({
                   </div>
                 )}
               </div>
-              <div className="rounded-xl border border-blue-500/60 bg-card px-3 py-2.5">
+              <div className="rounded-2xl border border-blue-500/60 bg-card px-3 py-2.5">
                 <div className="mb-1.5 text-[11px] font-bold tracking-widest text-blue-600 dark:text-blue-400">
                   SHE&apos;S MISSING
                 </div>
@@ -1755,7 +1785,7 @@ function BatterView({
           )}
 
           {sprayMarkers.length > 0 && (
-            <div className="mb-3.5 rounded-xl border bg-card p-3">
+            <div className="mb-3.5 rounded-2xl border bg-card p-3">
               <div className="mb-1 flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground">
                 <span>SPRAY CHART</span>
                 <span className="font-mono font-normal normal-case">
@@ -1864,9 +1894,9 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
           <button
             onClick={() => setFilter("all")}
             className={cn(
-              "rounded-lg border px-2.5 py-1.5 text-xs font-bold tracking-widest",
+              "press rounded-2xl border px-3 py-1.5 text-xs font-bold tracking-widest",
               filter === "all"
-                ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                ? "border-primary bg-primary/15 text-primary"
                 : "border-border text-muted-foreground hover:bg-accent"
             )}
           >
@@ -1877,9 +1907,9 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
               key={p.id}
               onClick={() => setFilter(p.id)}
               className={cn(
-                "rounded-lg border px-2.5 py-1.5 text-xs font-bold",
+                "press rounded-2xl border px-3 py-1.5 text-xs font-bold",
                 filter === p.id
-                  ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  ? "border-primary bg-primary/15 text-primary"
                   : "border-border text-muted-foreground hover:bg-accent"
               )}
             >
@@ -1898,7 +1928,7 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
       ) : (
         <>
           {teamSpray.length > 0 && (
-            <div className="mb-3.5 rounded-xl border bg-card p-3">
+            <div className="mb-3.5 rounded-2xl border bg-card p-3">
               <div className="mb-1 flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground">
                 <span>TEAM SPRAY · {teamSpray.length} IN PLAY</span>
                 <span className="font-mono font-normal normal-case">
@@ -1916,7 +1946,7 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
           <div className="mx-0.5 mb-2 mt-1 text-xs tracking-widest text-muted-foreground">
             OVERALL MIX · {total} pitches
           </div>
-          <div className="mb-1.5 flex h-[30px] overflow-hidden rounded-lg">
+          <div className="mb-1.5 flex h-[30px] overflow-hidden rounded-2xl">
             {typesUsed.map((p) => (
               <div
                 key={p.k}
@@ -1958,9 +1988,9 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
               return (
                 <div
                   key={k}
-                  className="flex items-center gap-2.5 rounded-xl border bg-card px-3 py-2"
+                  className="flex items-center gap-2.5 rounded-2xl border bg-card px-3 py-2.5"
                 >
-                  <div className="w-[46px] font-mono text-xl font-bold text-amber-600 dark:text-amber-400">
+                  <div className="scoreboard w-[46px] font-mono text-xl font-extrabold text-primary">
                     {k}
                   </div>
                   <div className="flex h-[22px] flex-1 overflow-hidden rounded-md bg-muted">

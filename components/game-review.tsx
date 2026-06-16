@@ -131,19 +131,24 @@ export default function GameReview({
             ["1ST-PITCH K %", stats.fpsPct ?? "—"],
           ] as const
         ).map(([l, v]) => (
-          <div key={l} className="rounded-xl border bg-card px-2 py-1.5 text-center">
-            <div className="text-[10px] tracking-widest text-muted-foreground">
+          <div
+            key={l}
+            className="tile-accent rounded-2xl border border-border/70 bg-card px-3 py-2.5 text-center"
+          >
+            <div className="text-[10px] font-semibold tracking-widest text-muted-foreground">
               {l}
             </div>
-            <div className="font-mono text-xl font-bold text-foreground">{v}</div>
+            <div className="scoreboard font-mono text-2xl font-extrabold text-primary tnum">
+              {v}
+            </div>
           </div>
         ))}
       </div>
 
       {/* team spray */}
       {teamSpray.length > 0 && (
-        <div className="rounded-xl border bg-card p-3">
-          <div className="mb-1 text-[11px] font-bold tracking-widest text-muted-foreground">
+        <div className="rounded-2xl border bg-card p-4">
+          <div className="mb-2 text-xs font-bold tracking-widest text-muted-foreground">
             TEAM SPRAY · {teamSpray.length} IN PLAY
           </div>
           <FieldChart className="w-full" markers={teamSpray} />
@@ -180,9 +185,9 @@ function Chip({
       onClick={onClick}
       aria-pressed={on}
       className={cn(
-        "press rounded-lg border px-2.5 py-1.5 text-xs font-bold tracking-wide",
+        "press rounded-2xl border px-3 py-1.5 text-xs font-bold tracking-wide",
         on
-          ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+          ? "border-primary bg-primary/15 text-primary"
           : "border-border text-muted-foreground hover:bg-accent"
       )}
     >
@@ -226,9 +231,11 @@ function BatterCard({
     .sort((a, b) => b[1].miss - a[1].miss);
 
   return (
-    <div className="rounded-xl border bg-card p-3">
-      <div className="mb-2 text-lg font-bold">
-        #{batter.jersey}
+    <div className="rounded-2xl border bg-card p-4">
+      <div className="mb-3 text-lg font-bold">
+        <span className="scoreboard font-mono font-extrabold text-primary tnum">
+          #{batter.jersey}
+        </span>
         {batter.name && <span className="ml-2">{batter.name}</span>}
         <span className="ml-2 text-sm font-normal text-muted-foreground">
           {batter.hand}HH · {pitches.length} seen
@@ -237,14 +244,14 @@ function BatterCard({
 
       <div className="grid gap-3 md:grid-cols-[1fr_1.2fr]">
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-red-500/50 p-2">
-            <div className="mb-1 text-[10px] font-bold tracking-widest text-red-600 dark:text-red-400">
+          <div className="rounded-2xl border border-red-500/50 p-2.5">
+            <div className="mb-1.5 text-[10px] font-bold tracking-widest text-red-600 dark:text-red-400">
               ON THESE
             </div>
             {hits.length ? (
               hits.map(([k, v]) => (
-                <div key={k} className="py-0.5 font-mono text-xs">
-                  <span className="text-red-600 dark:text-red-400">
+                <div key={k} className="py-1 font-mono text-xs tnum">
+                  <span className="font-bold text-red-600 dark:text-red-400">
                     {v.contact}×
                   </span>{" "}
                   {k}
@@ -259,14 +266,14 @@ function BatterCard({
               <div className="font-mono text-xs text-muted-foreground/60">—</div>
             )}
           </div>
-          <div className="rounded-lg border border-blue-500/50 p-2">
-            <div className="mb-1 text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400">
+          <div className="rounded-2xl border border-blue-500/50 p-2.5">
+            <div className="mb-1.5 text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400">
               MISSING
             </div>
             {whiffs.length ? (
               whiffs.map(([k, v]) => (
-                <div key={k} className="py-0.5 font-mono text-xs">
-                  <span className="text-blue-600 dark:text-blue-400">
+                <div key={k} className="py-1 font-mono text-xs tnum">
+                  <span className="font-bold text-blue-600 dark:text-blue-400">
                     {v.miss}×
                   </span>{" "}
                   {k}
@@ -280,7 +287,7 @@ function BatterCard({
         {spray.length > 0 ? (
           <FieldChart className="w-full" markers={spray} />
         ) : (
-          <div className="flex items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground/50">
+          <div className="flex items-center justify-center rounded-2xl border border-dashed text-xs text-muted-foreground/50">
             no balls in play
           </div>
         )}

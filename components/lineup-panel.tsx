@@ -65,7 +65,7 @@ export default function LineupPanel({
   };
 
   return (
-    <div className="mb-2.5 rounded-xl border bg-card">
+    <div className="mb-2.5 rounded-2xl border bg-card">
       {/* header: now / on-deck + controls */}
       <div className="flex items-center gap-2 px-3 py-2">
         <button
@@ -78,8 +78,10 @@ export default function LineupPanel({
             <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
           )}
           <span className="truncate text-sm">
-            <span className="text-muted-foreground">NOW </span>
-            <span className="font-bold text-amber-600 dark:text-amber-400">
+            <span className="text-[10px] font-bold tracking-widest text-muted-foreground">
+              NOW{" "}
+            </span>
+            <span className="scoreboard font-mono font-extrabold text-primary tnum">
               {current ? `#${current.jersey}` : "—"}
             </span>
             {onDeck && (
@@ -94,10 +96,10 @@ export default function LineupPanel({
           onClick={onToggleAuto}
           aria-pressed={autoAdvance}
           className={cn(
-            "press shrink-0 rounded-lg border px-2 py-1.5 text-[11px] font-bold tracking-widest",
+            "press shrink-0 rounded-2xl border px-2.5 py-1.5 text-[11px] font-bold tracking-widest",
             autoAdvance
-              ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-              : "border-border text-muted-foreground"
+              ? "border-primary bg-primary/15 text-primary"
+              : "border-border text-muted-foreground hover:bg-accent"
           )}
           title="Auto-advance to the next hitter"
         >
@@ -110,10 +112,10 @@ export default function LineupPanel({
             if (!open) setOpen(true);
           }}
           className={cn(
-            "shrink-0 rounded-lg border p-1.5",
+            "shrink-0 rounded-2xl border p-1.5",
             editMode
-              ? "border-amber-500 text-amber-600 dark:text-amber-400"
-              : "text-muted-foreground hover:bg-accent"
+              ? "border-primary text-primary"
+              : "border-border text-muted-foreground hover:bg-accent"
           )}
           aria-label="Edit lineup"
         >
@@ -153,21 +155,21 @@ export default function LineupPanel({
                   <button
                     onClick={() => !editMode && onSelect(b.id)}
                     className={cn(
-                      "press flex flex-1 items-center gap-2 rounded-lg border px-2.5 py-2 text-left",
+                      "press flex flex-1 items-center gap-2 rounded-2xl border px-2.5 py-2.5 text-left",
                       on
-                        ? "border-amber-500 bg-amber-500/15"
+                        ? "border-primary bg-primary/15"
                         : deck
-                          ? "border-amber-500/40 bg-card"
+                          ? "border-primary/40 bg-card"
                           : "border-border bg-card hover:bg-accent"
                     )}
                   >
-                    <span className="w-5 text-center font-mono text-xs text-muted-foreground">
+                    <span className="w-5 text-center font-mono text-xs text-muted-foreground tnum">
                       {i + 1}
                     </span>
                     <span
                       className={cn(
-                        "text-[15px] font-bold",
-                        on && "text-amber-600 dark:text-amber-400"
+                        "scoreboard font-mono text-[15px] font-extrabold tnum",
+                        on && "text-primary"
                       )}
                     >
                       #{b.jersey}
@@ -182,9 +184,7 @@ export default function LineupPanel({
                     )}
                     <span className="ml-auto text-[10px] font-bold tracking-widest">
                       {on ? (
-                        <span className="text-amber-600 dark:text-amber-400">
-                          AT BAT
-                        </span>
+                        <span className="text-primary">AT BAT</span>
                       ) : deck ? (
                         <span className="text-muted-foreground">ON DECK</span>
                       ) : null}
@@ -238,11 +238,11 @@ export default function LineupPanel({
                 onChange={(e) => setJersey(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submitAdd()}
                 placeholder="#"
-                className="w-12 rounded-lg border bg-background px-2 py-1.5 font-mono text-[15px] outline-none focus:border-amber-500"
+                className="w-12 rounded-2xl border bg-background px-2 py-1.5 font-mono text-[15px] outline-none focus:border-primary"
               />
               <button
                 onClick={() => setHand(hand === "R" ? "L" : "R")}
-                className="rounded-lg border bg-background px-2.5 py-1.5 font-mono text-sm font-bold"
+                className="rounded-2xl border bg-background px-2.5 py-1.5 font-mono text-sm font-bold"
               >
                 {hand}
               </button>
@@ -251,11 +251,11 @@ export default function LineupPanel({
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submitAdd()}
                 placeholder="Name (optional)"
-                className="min-w-0 flex-1 rounded-lg border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-amber-500"
+                className="min-w-0 flex-1 rounded-2xl border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary"
               />
               <button
                 onClick={submitAdd}
-                className="flex shrink-0 items-center gap-1 rounded-lg bg-amber-500 px-2.5 py-1.5 text-sm font-bold text-black"
+                className="press flex shrink-0 items-center gap-1 rounded-2xl bg-primary px-3 py-1.5 text-sm font-bold text-primary-foreground"
               >
                 <Plus className="size-3.5" /> ADD
               </button>
@@ -281,15 +281,15 @@ function InlineEdit({
   const [hand, setHand] = useState<Hand>(batter.hand);
 
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-amber-500 px-2 py-1.5">
+    <div className="flex items-center gap-1.5 rounded-2xl border border-primary px-2 py-1.5">
       <input
         value={jersey}
         onChange={(e) => setJersey(e.target.value)}
-        className="w-12 rounded-lg border bg-background px-2 py-1.5 font-mono text-[15px] outline-none focus:border-amber-500"
+        className="w-12 rounded-2xl border bg-background px-2 py-1.5 font-mono text-[15px] outline-none focus:border-primary"
       />
       <button
         onClick={() => setHand(hand === "R" ? "L" : "R")}
-        className="rounded-lg border bg-background px-2.5 py-1.5 font-mono text-sm font-bold"
+        className="rounded-2xl border bg-background px-2.5 py-1.5 font-mono text-sm font-bold"
       >
         {hand}
       </button>
@@ -297,7 +297,7 @@ function InlineEdit({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Name"
-        className="min-w-0 flex-1 rounded-lg border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-amber-500"
+        className="min-w-0 flex-1 rounded-2xl border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary"
       />
       <button
         onClick={() =>
@@ -307,14 +307,14 @@ function InlineEdit({
             name: name.trim() || undefined,
           })
         }
-        className="shrink-0 rounded-lg bg-amber-500 p-1.5 text-black"
+        className="press shrink-0 rounded-2xl bg-primary p-1.5 text-primary-foreground"
         aria-label="Save"
       >
         <Check className="size-4" />
       </button>
       <button
         onClick={onCancel}
-        className="shrink-0 rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+        className="press shrink-0 rounded-2xl border p-1.5 text-muted-foreground hover:bg-accent"
         aria-label="Cancel"
       >
         <X className="size-4" />

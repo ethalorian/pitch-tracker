@@ -40,7 +40,7 @@ export default function SequencingView({
   const maxAfter = Math.max(1, ...seq.afterWhiff.map((a) => a.count));
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2">
       {/* hero: put-away pitch */}
       <Card className="md:col-span-2">
         <Header title="Put-away pitch" sub={`${seq.totalKs} K this set`} />
@@ -48,11 +48,11 @@ export default function SequencingView({
           <div className="mt-1 flex items-center gap-4">
             <Chip type={topK.type} zone={topK.zone} color={color(topK.type)} big />
             <div
-              className="ml-auto font-mono text-4xl font-bold leading-none"
+              className="scoreboard ml-auto font-mono text-5xl font-extrabold leading-none tnum"
               style={{ color: color(topK.type) }}
             >
               {topK.count}
-              <span className="ml-1 align-top text-sm text-muted-foreground">
+              <span className="ml-1 align-top text-sm font-bold text-muted-foreground">
                 K
               </span>
             </div>
@@ -65,7 +65,7 @@ export default function SequencingView({
             {seq.putAway.slice(1, 5).map((c) => (
               <span
                 key={c.key}
-                className="rounded-md border px-2 py-1 font-mono text-xs"
+                className="rounded-2xl border px-2.5 py-1 font-mono text-xs font-bold tnum"
                 style={{ borderColor: color(c.type), color: color(c.type) }}
               >
                 {c.type} {ZONES[c.zone]} · {c.count}
@@ -118,7 +118,7 @@ export default function SequencingView({
                       style={{ width: `${(finPct / 100) * (c.count / maxAfter) * 100}%` }}
                     />
                   </div>
-                  <span className="w-14 shrink-0 text-right font-mono text-[11px] text-muted-foreground">
+                  <span className="w-14 shrink-0 text-right font-mono text-[11px] text-muted-foreground tnum">
                     {c.count}× {c.finished}✓
                   </span>
                 </div>
@@ -158,7 +158,7 @@ export default function SequencingView({
                     <div className="bg-red-500" style={{ width: seg(c.inplay) }} />
                     <div className="bg-blue-500/40" style={{ width: seg(c.ball) }} />
                   </div>
-                  <span className="w-10 shrink-0 text-right font-mono text-[11px] font-bold text-green-600 dark:text-green-400">
+                  <span className="w-10 shrink-0 text-right font-mono text-[11px] font-bold text-green-600 dark:text-green-400 tnum">
                     {c.k}K
                   </span>
                 </div>
@@ -181,7 +181,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl border bg-card p-3.5 ${className}`}>
+    <div className={`rounded-2xl border bg-card p-4 ${className}`}>
       {children}
     </div>
   );
@@ -189,8 +189,10 @@ function Card({
 
 function Header({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="mb-1 flex items-baseline justify-between">
-      <span className="text-sm font-bold tracking-wide">{title}</span>
+    <div className="mb-2 flex items-baseline justify-between">
+      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        {title}
+      </span>
       {sub && (
         <span className="text-[10px] tracking-widest text-muted-foreground/70">
           {sub}
@@ -259,7 +261,7 @@ function BarRow({
           style={{ width: `${pct}%`, background: color }}
         />
       </div>
-      <span className="w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground">
+      <span className="w-16 shrink-0 text-right font-mono text-[11px] text-muted-foreground tnum">
         {right}
       </span>
     </div>

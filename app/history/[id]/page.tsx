@@ -56,7 +56,7 @@ export default function GameDetailPage({
             <Skeleton className="h-28" />
           </div>
         ) : !row || !s ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             This game has no logged data.
           </div>
         ) : (

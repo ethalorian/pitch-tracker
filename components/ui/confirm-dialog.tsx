@@ -58,7 +58,7 @@ export function useConfirm() {
       onClick={() => close(false)}
     >
       <div
-        className="animate-sheet-in w-full max-w-[360px] rounded-xl border bg-card p-5 shadow-xl"
+        className="animate-sheet-in w-full max-w-[360px] rounded-2xl border bg-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-base font-bold">{opts.title}</div>
@@ -71,17 +71,17 @@ export function useConfirm() {
           <button
             autoFocus
             onClick={() => close(false)}
-            className="press flex-1 rounded-lg border py-2.5 text-sm font-bold text-muted-foreground hover:bg-accent"
+            className="press flex-1 rounded-2xl border py-2.5 text-sm font-bold text-muted-foreground hover:bg-accent"
           >
             {opts.cancelLabel ?? "Cancel"}
           </button>
           <button
             onClick={() => close(true)}
             className={cn(
-              "press flex-1 rounded-lg py-2.5 text-sm font-bold",
+              "press flex-1 rounded-2xl py-2.5 text-sm font-bold",
               opts.destructive
                 ? "bg-red-600 text-white hover:bg-red-500"
-                : "bg-amber-500 text-black hover:bg-amber-400"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
             )}
           >
             {opts.confirmLabel ?? "Confirm"}

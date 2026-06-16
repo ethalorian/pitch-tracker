@@ -118,15 +118,15 @@ export default function CardEditor() {
   return (
     <div>
       {/* card switcher */}
-      <div className="mb-3 flex flex-wrap gap-1.5">
+      <div className="mb-4 flex flex-wrap gap-2">
         {cards.map((c) => (
           <button
             key={c.id}
             onClick={() => loadInto(c)}
             className={cn(
-              "flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-bold",
+              "press flex items-center gap-1 rounded-2xl border px-3 py-1.5 text-sm font-bold",
               c.id === selId
-                ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                ? "border-primary bg-primary/15 text-primary"
                 : "border-border text-foreground hover:bg-accent"
             )}
           >
@@ -137,7 +137,7 @@ export default function CardEditor() {
         <button
           onClick={addCard}
           disabled={busy}
-          className="flex items-center gap-1 rounded-lg border border-dashed px-3 py-1.5 text-sm font-bold text-muted-foreground hover:bg-accent"
+          className="press flex items-center gap-1 rounded-2xl border border-dashed px-3 py-1.5 text-sm font-bold text-muted-foreground hover:bg-accent"
         >
           <Plus className="size-3.5" /> NEW
         </button>
@@ -145,18 +145,18 @@ export default function CardEditor() {
 
       {selected && (
         <>
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2">
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Card name"
-              className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-[15px] font-bold outline-none focus:border-amber-500"
+              className="min-w-0 flex-1 rounded-xl border bg-background px-3 py-2.5 text-[15px] font-bold outline-none focus:border-primary"
             />
             {!selected.isActive && (
               <button
                 onClick={makeActive}
                 disabled={busy}
-                className="shrink-0 rounded-lg border px-3 py-2 text-xs font-bold tracking-widest text-muted-foreground hover:bg-accent"
+                className="press shrink-0 rounded-2xl border px-3 py-2.5 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:bg-accent"
               >
                 SET ACTIVE
               </button>
@@ -165,7 +165,7 @@ export default function CardEditor() {
               <button
                 onClick={() => removeCard(selected.id)}
                 aria-label="Delete card"
-                className="shrink-0 rounded-lg border p-2 text-muted-foreground hover:bg-accent hover:text-red-500"
+                className="press shrink-0 rounded-2xl border p-2.5 text-muted-foreground hover:bg-accent hover:text-red-500"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -179,7 +179,7 @@ export default function CardEditor() {
 
           <div className="flex flex-col gap-2">
             {BUCKET_DEFS.map((b) => (
-              <div key={b.key} className="rounded-lg border bg-card p-2.5">
+              <div key={b.key} className="rounded-2xl border bg-card p-2.5">
                 <div className="mb-1 flex items-baseline justify-between">
                   <span className="font-mono text-sm font-bold">{b.key}</span>
                   <span className="text-[11px] text-muted-foreground">
@@ -195,7 +195,7 @@ export default function CardEditor() {
                     }))
                   }
                   rows={2}
-                  className="w-full resize-none rounded-md border bg-background px-2 py-1.5 font-mono text-sm outline-none focus:border-amber-500"
+                  className="w-full resize-none rounded-xl border bg-background px-2 py-1.5 font-mono text-sm outline-none focus:border-primary"
                 />
               </div>
             ))}
@@ -205,14 +205,14 @@ export default function CardEditor() {
             <button
               onClick={save}
               disabled={busy}
-              className="flex-1 rounded-lg bg-amber-500 py-2.5 font-bold tracking-wide text-black disabled:opacity-50"
+              className="press flex-1 rounded-2xl bg-primary py-2.5 font-bold tracking-wide text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {busy ? "Saving…" : "SAVE CARD"}
             </button>
             {msg && (
               <span
                 role="status"
-                className="text-sm font-bold text-amber-600 dark:text-amber-400"
+                className="text-sm font-bold text-primary"
               >
                 {msg}
               </span>

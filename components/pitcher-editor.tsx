@@ -94,41 +94,41 @@ export default function PitcherEditor({
   };
 
   return (
-    <div className="mb-5 rounded-xl border border-amber-500 bg-card p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-xs font-bold tracking-widest text-amber-600 dark:text-amber-400">
+    <div className="mb-5 rounded-2xl border border-primary bg-card p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="brand-glow text-xs font-bold uppercase tracking-widest text-primary">
           {title ?? (initial ? "EDIT PITCHER" : "NEW PITCHER")}
         </div>
         {onClose && (
           <button
             aria-label="Close editor"
             onClick={onClose}
-            className="rounded-lg border p-1 text-muted-foreground hover:bg-accent"
+            className="press rounded-2xl border p-1.5 text-muted-foreground hover:bg-accent"
           >
             <X className="size-4" />
           </button>
         )}
       </div>
 
-      <div className="mb-3 flex gap-2">
+      <div className="mb-4 flex gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name"
-          className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-[15px] outline-none focus:border-amber-500"
+          className="min-w-0 flex-1 rounded-xl border bg-background px-3 py-2.5 text-[15px] outline-none focus:border-primary"
         />
         <input
           value={number}
           onChange={(e) => setNumber(e.target.value)}
           placeholder="#"
-          className="w-16 rounded-lg border bg-background px-3 py-2 font-mono text-[15px] outline-none focus:border-amber-500"
+          className="w-16 rounded-xl border bg-background px-3 py-2.5 font-mono text-[15px] outline-none focus:border-primary"
         />
       </div>
 
-      <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
+      <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
         REPERTOIRE
       </div>
-      <div className="mb-2 flex flex-wrap gap-1.5">
+      <div className="mb-2 flex flex-wrap gap-2">
         {STANDARD_PITCHES.map((pd) => {
           const on = has(pd.k);
           return (
@@ -136,7 +136,7 @@ export default function PitcherEditor({
               key={pd.k}
               onClick={() => toggleStandard(pd)}
               aria-pressed={on}
-              className="press rounded-lg border-2 px-3 py-1.5 font-mono text-sm font-bold transition-colors"
+              className="press rounded-2xl border-2 px-3 py-1.5 font-mono text-sm font-bold transition-colors"
               style={
                 on
                   ? { borderColor: pd.c, background: pd.c, color: "#0a0c10" }
@@ -158,7 +158,7 @@ export default function PitcherEditor({
               onClick={() =>
                 setPitches((xs) => xs.filter((x) => x.k !== pd.k))
               }
-              className="rounded-lg border-2 px-3 py-1.5 font-mono text-sm font-bold"
+              className="press rounded-2xl border-2 px-3 py-1.5 font-mono text-sm font-bold"
               style={{ borderColor: pd.c, background: pd.c, color: "#0a0c10" }}
             >
               {pd.k}
@@ -169,24 +169,24 @@ export default function PitcherEditor({
           ))}
       </div>
 
-      <div className="mb-3 flex gap-2">
+      <div className="mb-4 flex gap-2">
         <input
           value={customK}
           onChange={(e) => setCustomK(e.target.value)}
           placeholder="Key (e.g. KN)"
           maxLength={3}
-          className="w-28 rounded-lg border bg-background px-3 py-2 font-mono text-sm uppercase outline-none focus:border-amber-500"
+          className="w-28 rounded-xl border bg-background px-3 py-2.5 font-mono text-sm uppercase outline-none focus:border-primary"
         />
         <input
           value={customName}
           onChange={(e) => setCustomName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addCustom()}
           placeholder="Custom pitch name"
-          className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-amber-500"
+          className="min-w-0 flex-1 rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
         />
         <button
           onClick={addCustom}
-          className="rounded-lg border px-3 py-2 text-sm font-bold text-muted-foreground hover:bg-accent"
+          className="press rounded-2xl border px-3 py-2.5 text-sm font-bold text-muted-foreground hover:bg-accent"
         >
           ADD
         </button>
@@ -201,7 +201,7 @@ export default function PitcherEditor({
       <button
         onClick={save}
         disabled={busy}
-        className="press w-full rounded-lg bg-amber-500 py-2.5 font-bold tracking-wide text-black hover:bg-amber-400 disabled:opacity-50"
+        className="press w-full rounded-2xl bg-primary py-2.5 font-bold tracking-wide text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {busy ? "Saving…" : "SAVE PITCHER"}
       </button>

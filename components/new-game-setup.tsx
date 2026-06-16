@@ -82,15 +82,15 @@ export default function NewGameSetup({
 
   return (
     <div className="animate-overlay-in fixed inset-0 z-30 flex items-start justify-center overflow-y-auto bg-background/90 p-4 pt-12 backdrop-blur-sm">
-      <div className="animate-sheet-in w-full max-w-[440px] rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
+      <div className="animate-sheet-in w-full max-w-[440px] rounded-2xl border bg-card p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="brand-glow text-sm font-bold tracking-widest text-primary">
             NEW GAME
           </div>
           <button
             aria-label="Cancel"
             onClick={onCancel}
-            className="rounded-lg border p-1 text-muted-foreground hover:bg-accent"
+            className="press rounded-2xl border p-1.5 text-muted-foreground hover:bg-accent"
           >
             <X className="size-4" />
           </button>
@@ -100,22 +100,22 @@ export default function NewGameSetup({
           <div className="p-6 text-center text-muted-foreground">loading…</div>
         ) : (
           <>
-            <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
+            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
               STARTING PITCHER
             </div>
             {pitchers.length === 0 ? (
-              <div className="mb-3 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+              <div className="mb-4 rounded-2xl border border-dashed p-3 text-sm text-muted-foreground">
                 No pitchers set up yet.{" "}
                 <Link
                   href="/team"
-                  className="font-bold text-amber-600 underline-offset-4 hover:underline dark:text-amber-400"
+                  className="font-bold text-primary underline-offset-4 hover:underline"
                 >
                   Add one on the coach screen
                 </Link>{" "}
                 first.
               </div>
             ) : (
-              <div className="mb-3 flex flex-wrap gap-1.5">
+              <div className="mb-4 flex flex-wrap gap-2">
                 {pitchers.map((p) => {
                   const on = p.id === pitcherId;
                   return (
@@ -123,9 +123,9 @@ export default function NewGameSetup({
                       key={p.id}
                       onClick={() => setPitcherId(p.id)}
                       className={cn(
-                        "rounded-lg border px-3 py-2 text-sm font-bold",
+                        "press rounded-2xl border px-3 py-2 text-sm font-bold",
                         on
-                          ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          ? "border-primary bg-primary/15 text-primary"
                           : "border-border text-foreground hover:bg-accent"
                       )}
                     >
@@ -144,11 +144,11 @@ export default function NewGameSetup({
               </div>
             )}
 
-            <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
+            <div className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
               OPPONENT
             </div>
             {teams.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-1.5">
+              <div className="mb-2 flex flex-wrap gap-2">
                 {teams.map((t) => {
                   const on = t.id === teamId;
                   return (
@@ -159,9 +159,9 @@ export default function NewGameSetup({
                         setNewName("");
                       }}
                       className={cn(
-                        "rounded-lg border px-3 py-2 text-sm font-bold",
+                        "press rounded-2xl border px-3 py-2 text-sm font-bold",
                         on
-                          ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          ? "border-primary bg-primary/15 text-primary"
                           : "border-border text-foreground hover:bg-accent"
                       )}
                     >
@@ -185,7 +185,7 @@ export default function NewGameSetup({
                   ? "…or type a new opponent name"
                   : "Opponent team name (required)"
               }
-              className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-[15px] outline-none focus:border-amber-500"
+              className="mb-4 w-full rounded-xl border bg-background px-3 py-2.5 text-[15px] outline-none focus:border-primary"
             />
 
             {error && (
@@ -197,7 +197,7 @@ export default function NewGameSetup({
             <button
               onClick={start}
               disabled={busy || pitchers.length === 0}
-              className="press w-full rounded-lg bg-amber-500 py-3 font-bold tracking-wide text-black hover:bg-amber-400 disabled:opacity-50"
+              className="press w-full rounded-2xl bg-primary py-3 font-bold tracking-wide text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {busy ? "Starting…" : "START GAME"}
             </button>

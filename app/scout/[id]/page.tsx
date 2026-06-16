@@ -86,12 +86,12 @@ export default function ScoutPage({
             <Skeleton className="h-28" />
           </div>
         ) : pitches.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             No pitch data on file for this team yet.
           </div>
         ) : (
           <>
-            <div className="mb-3 text-xs tracking-widest text-muted-foreground">
+            <div className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
               POOLED ACROSS {gameCount} GAME{gameCount === 1 ? "" : "S"} · every
               batter&apos;s tendencies vs your staff
             </div>

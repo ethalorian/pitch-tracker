@@ -106,21 +106,21 @@ export default function DashboardPage() {
             <Skeleton className="h-48" />
           </div>
         ) : pitchers.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             No pitchers yet. Add them on the coach screen.
           </div>
         ) : (
           <>
-            <div className="mb-3 flex flex-wrap gap-1.5">
+            <div className="mb-4 flex flex-wrap gap-1.5">
               {pitchers.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setSel(p.id)}
                   aria-pressed={p.id === sel}
                   className={cn(
-                    "press rounded-lg border px-3 py-2 text-sm font-bold",
+                    "press rounded-2xl border px-3 py-2 text-sm font-bold",
                     p.id === sel
-                      ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      ? "border-primary bg-primary/15 text-primary"
                       : "border-border text-foreground hover:bg-accent"
                   )}
                 >
@@ -130,13 +130,13 @@ export default function DashboardPage() {
             </div>
 
             {!season || season.totalPitches === 0 ? (
-              <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                 No game data for {pitcher?.name ?? "this pitcher"} yet.
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 {/* headline */}
-                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                   <Stat label="GAMES" value={season.games} />
                   <Stat label="PITCHES" value={season.totalPitches} />
                   <Stat
@@ -153,15 +153,15 @@ export default function DashboardPage() {
                   <div className="mb-2 text-xs font-bold tracking-widest text-muted-foreground">
                     PER-PITCH EFFECTIVENESS
                   </div>
-                  <div className="overflow-hidden rounded-xl border">
+                  <div className="overflow-hidden rounded-2xl border">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-card/50 text-[10px] tracking-widest text-muted-foreground">
-                          <th className="px-2 py-1.5 text-left">PITCH</th>
-                          <th className="px-2 py-1.5 text-right">USE</th>
-                          <th className="px-2 py-1.5 text-right">STR</th>
-                          <th className="px-2 py-1.5 text-right">WHIFF</th>
-                          <th className="px-2 py-1.5 text-right">HARD</th>
+                          <th className="px-3 py-2 text-left">PITCH</th>
+                          <th className="px-3 py-2 text-right">USE</th>
+                          <th className="px-3 py-2 text-right">STR</th>
+                          <th className="px-3 py-2 text-right">WHIFF</th>
+                          <th className="px-3 py-2 text-right">HARD</th>
                         </tr>
                       </thead>
                       <tbody className="font-mono">
@@ -169,22 +169,22 @@ export default function DashboardPage() {
                           const d = pitchDef(defs, s.type);
                           return (
                             <tr key={s.type} className="border-b last:border-0">
-                              <td className="px-2 py-2 font-bold" style={{ color: d.c }}>
+                              <td className="px-3 py-2.5 font-bold" style={{ color: d.c }}>
                                 {s.type}
                                 <span className="ml-1 font-sans text-[10px] font-normal text-muted-foreground">
                                   {s.count}
                                 </span>
                               </td>
-                              <td className="px-2 py-2 text-right text-muted-foreground">
+                              <td className="px-3 py-2.5 text-right tnum text-muted-foreground">
                                 {s.usagePct}%
                               </td>
-                              <td className="px-2 py-2 text-right">
+                              <td className="px-3 py-2.5 text-right tnum">
                                 {s.strikePct}%
                               </td>
-                              <td className="px-2 py-2 text-right font-bold text-blue-600 dark:text-blue-400">
+                              <td className="px-3 py-2.5 text-right tnum font-bold text-blue-600 dark:text-blue-400">
                                 {s.whiffPct}%
                               </td>
-                              <td className="px-2 py-2 text-right font-bold text-red-600 dark:text-red-400">
+                              <td className="px-3 py-2.5 text-right tnum font-bold text-red-600 dark:text-red-400">
                                 {s.hard}
                               </td>
                             </tr>
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                   <div className="mb-2 text-xs font-bold tracking-widest text-muted-foreground">
                     GAME-BY-GAME · strike% (bar) · whiff% (dot)
                   </div>
-                  <div className="flex items-end gap-1.5 overflow-x-auto rounded-xl border bg-card p-3">
+                  <div className="flex items-end gap-1.5 overflow-x-auto rounded-2xl border bg-card p-3">
                     {season.perGame.map((g) => (
                       <div
                         key={g.id}
@@ -251,11 +251,11 @@ export default function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="tile-accent rounded-xl border border-border/70 bg-card px-2 py-2 text-center">
-      <div className="text-[9px] font-semibold tracking-widest text-muted-foreground">
+    <div className="tile-accent rounded-2xl border border-border/70 bg-card px-3 py-2.5 text-center">
+      <div className="text-[10px] font-semibold tracking-widest text-muted-foreground">
         {label}
       </div>
-      <div className="scoreboard font-mono text-xl font-extrabold text-primary">
+      <div className="scoreboard font-mono text-2xl font-extrabold text-primary">
         {value}
       </div>
     </div>

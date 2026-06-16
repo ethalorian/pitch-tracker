@@ -40,7 +40,7 @@ export default function LoginPage() {
         </div>
         <form
           onSubmit={signIn}
-          className="flex flex-col gap-3 rounded-xl border bg-card p-5"
+          className="flex flex-col gap-3 rounded-2xl border bg-card p-5"
         >
           <div className="text-xs tracking-widest text-muted-foreground">
             COACHES ONLY — SIGN IN
@@ -57,7 +57,7 @@ export default function LoginPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-amber-500"
+            className="rounded-xl border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-primary"
           />
           <label className="sr-only" htmlFor="login-password">
             Password
@@ -70,7 +70,7 @@ export default function LoginPage() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-amber-500"
+            className="rounded-xl border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-primary"
           />
           {error && (
             <div

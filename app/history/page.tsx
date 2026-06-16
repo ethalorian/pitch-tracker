@@ -63,7 +63,7 @@ export default function HistoryPage() {
             <Skeleton className="h-16" />
           </div>
         ) : games.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             No games yet. Start one from the game screen — it&apos;ll appear here
             once played.
           </div>
@@ -82,7 +82,7 @@ export default function HistoryPage() {
                       <Link
                         key={t.id}
                         href={`/scout/${t.id}`}
-                        className="flex items-center gap-2 rounded-xl border bg-card px-3.5 py-3 hover:bg-accent"
+                        className="flex items-center gap-2 rounded-2xl border bg-card px-3.5 py-3 hover:bg-accent"
                       >
                         <div className="flex-1">
                           <div className="font-bold">{t.name}</div>
@@ -108,7 +108,7 @@ export default function HistoryPage() {
                 <Link
                   key={g.id}
                   href={`/history/${g.id}`}
-                  className="flex items-center gap-2.5 rounded-xl border bg-card px-3.5 py-3 hover:bg-accent"
+                  className="flex items-center gap-2.5 rounded-2xl border bg-card px-3.5 py-3 hover:bg-accent"
                 >
                   {g.status === "active" ? (
                     <Circle className="size-3 shrink-0 animate-pulse fill-amber-500 text-amber-500" />

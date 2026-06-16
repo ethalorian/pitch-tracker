@@ -68,39 +68,39 @@ export default function TeamPage() {
               MY PITCHERS
               <button
                 onClick={() => setEditingPitcher("new")}
-                className="ml-auto flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold tracking-widest text-amber-600 hover:bg-accent dark:text-amber-400"
+                className="press ml-auto flex items-center gap-1 rounded-2xl border border-primary bg-primary/15 px-2.5 py-1 text-[11px] font-bold tracking-widest text-primary hover:bg-primary/25"
               >
                 <Plus className="size-3" /> ADD
               </button>
             </SectionLabel>
 
             {pitchers.length === 0 && !editingPitcher && (
-              <div className="mb-4 rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+              <div className="mb-4 rounded-2xl border border-dashed p-4 text-center text-sm text-muted-foreground">
                 No pitchers yet. Add one and pick her repertoire — the in-game
                 pitch buttons adapt to it.
               </div>
             )}
 
-            <div className="mb-5 flex flex-col gap-2">
+            <div className="mb-5 flex flex-col gap-2.5">
               {pitchers.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center gap-2 rounded-xl border bg-card px-3 py-2.5"
+                  className="flex items-center gap-2 rounded-2xl border bg-card px-3.5 py-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold">
+                    <div className="text-base font-bold text-foreground">
                       {p.name}
                       {p.number && (
-                        <span className="ml-1.5 text-sm text-muted-foreground">
+                        <span className="scoreboard ml-1.5 font-mono text-sm font-extrabold text-muted-foreground">
                           #{p.number}
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-1">
+                    <div className="mt-1.5 flex flex-wrap gap-1">
                       {p.pitches.map((pd) => (
                         <span
                           key={pd.k}
-                          className="rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold"
+                          className="rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-bold"
                           style={{ color: pd.c, borderColor: pd.c }}
                         >
                           {pd.k}
@@ -116,7 +116,7 @@ export default function TeamPage() {
                   <button
                     aria-label={`Edit ${p.name}`}
                     onClick={() => setEditingPitcher(p)}
-                    className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+                    className="press rounded-2xl border p-2 text-muted-foreground hover:bg-accent"
                   >
                     <Pencil className="size-4" />
                   </button>
@@ -133,7 +133,7 @@ export default function TeamPage() {
                       await deletePitcher(p.id);
                       setPitchers((xs) => xs.filter((x) => x.id !== p.id));
                     }}
-                    className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent hover:text-red-500"
+                    className="press rounded-2xl border p-2 text-muted-foreground hover:bg-accent hover:text-red-500"
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -162,18 +162,18 @@ export default function TeamPage() {
             <SectionLabel>OPPONENT TEAMS</SectionLabel>
 
             {teams.length === 0 && (
-              <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-dashed p-4 text-center text-sm text-muted-foreground">
                 Teams appear here automatically when you start a game against a
                 new opponent. Rosters grow as you tag batters.
               </div>
             )}
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {teams.map((t) => (
-                <div key={t.id} className="rounded-xl border bg-card px-3 py-2.5">
+                <div key={t.id} className="rounded-2xl border bg-card px-3.5 py-3">
                   <div className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold">{t.name}</div>
+                      <div className="text-base font-bold text-foreground">{t.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {t.batters.length} batter
                         {t.batters.length === 1 ? "" : "s"}
@@ -184,7 +184,7 @@ export default function TeamPage() {
                       onClick={() =>
                         setEditingTeam(editingTeam?.id === t.id ? null : t)
                       }
-                      className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent"
+                      className="press rounded-2xl border p-2 text-muted-foreground hover:bg-accent"
                     >
                       <Pencil className="size-4" />
                     </button>
@@ -202,7 +202,7 @@ export default function TeamPage() {
                         setTeams((xs) => xs.filter((x) => x.id !== t.id));
                         if (editingTeam?.id === t.id) setEditingTeam(null);
                       }}
-                      className="rounded-lg border p-1.5 text-muted-foreground hover:bg-accent hover:text-red-500"
+                      className="press rounded-2xl border p-2 text-muted-foreground hover:bg-accent hover:text-red-500"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -240,7 +240,7 @@ export default function TeamPage() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-2 mt-1 flex items-center text-xs tracking-widest text-muted-foreground">
+    <div className="mb-2 mt-1 flex items-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
       {children}
     </div>
   );
@@ -278,16 +278,16 @@ function TeamEditor({
         <input
           value={team.name}
           onChange={(e) => onChange({ ...team, name: e.target.value })}
-          className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-sm font-bold outline-none focus:border-amber-500"
+          className="min-w-0 flex-1 rounded-2xl border bg-background px-3 py-2 text-sm font-bold outline-none focus:border-primary"
         />
       </div>
       <div className="flex flex-col gap-1.5">
         {team.batters.map((b) => (
           <div
             key={b.id}
-            className="flex items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5 text-sm"
+            className="flex items-center gap-2 rounded-2xl border bg-background px-3 py-2 text-sm"
           >
-            <span className="font-mono font-bold">#{b.jersey}</span>
+            <span className="scoreboard font-mono font-extrabold">#{b.jersey}</span>
             <button
               onClick={() =>
                 onChange({
@@ -299,7 +299,7 @@ function TeamEditor({
                   ),
                 })
               }
-              className="rounded border px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:bg-accent"
+              className="press rounded-2xl border px-2 py-0.5 font-mono text-xs text-muted-foreground hover:bg-accent"
             >
               {b.hand}
             </button>
@@ -314,7 +314,7 @@ function TeamEditor({
                   batters: team.batters.filter((x) => x.id !== b.id),
                 })
               }
-              className="rounded border p-1 text-muted-foreground hover:text-red-500"
+              className="press rounded-2xl border p-1.5 text-muted-foreground hover:text-red-500"
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -326,11 +326,11 @@ function TeamEditor({
           value={jersey}
           onChange={(e) => setJersey(e.target.value)}
           placeholder="#"
-          className="w-14 rounded-lg border bg-background px-2 py-1.5 font-mono text-sm outline-none focus:border-amber-500"
+          className="w-14 rounded-2xl border bg-background px-2 py-2 font-mono text-sm outline-none focus:border-primary"
         />
         <button
           onClick={() => setHand(hand === "R" ? "L" : "R")}
-          className="rounded-lg border px-2.5 py-1.5 font-mono text-sm font-bold"
+          className="press rounded-2xl border px-2.5 py-2 font-mono text-sm font-bold"
         >
           {hand}
         </button>
@@ -339,11 +339,11 @@ function TeamEditor({
           onChange={(e) => setBname(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addBatter()}
           placeholder="Name (optional)"
-          className="min-w-0 flex-1 rounded-lg border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-amber-500"
+          className="min-w-0 flex-1 rounded-2xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
         />
         <button
           onClick={addBatter}
-          className="rounded-lg border px-2.5 py-1.5 text-sm font-bold text-muted-foreground hover:bg-accent"
+          className="press rounded-2xl border border-primary bg-primary/15 px-3 py-2 text-sm font-bold text-primary hover:bg-primary/25"
         >
           ADD
         </button>

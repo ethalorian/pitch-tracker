@@ -42,15 +42,15 @@ export default function SetPasswordPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center text-2xl font-bold tracking-wide">
+        <div className="brand-glow mb-6 text-center text-2xl font-bold tracking-wide">
           PITCH
-          <span className="text-amber-600 dark:text-amber-400">CALL</span>
+          <span className="text-primary">CALL</span>
         </div>
         <form
           onSubmit={submit}
-          className="flex flex-col gap-3 rounded-xl border bg-card p-5"
+          className="flex flex-col gap-3 rounded-2xl border bg-card p-5"
         >
-          <div className="text-xs tracking-widest text-muted-foreground">
+          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
             WELCOME — SET YOUR PASSWORD
           </div>
           <input
@@ -60,7 +60,7 @@ export default function SetPasswordPage() {
             placeholder="New password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-amber-500"
+            className="rounded-xl border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-primary"
           />
           <input
             type="password"
@@ -69,7 +69,7 @@ export default function SetPasswordPage() {
             placeholder="Confirm password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            className="rounded-lg border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-amber-500"
+            className="rounded-xl border bg-background px-3 py-2.5 text-[15px] text-foreground outline-none focus:border-primary"
           />
           {error && (
             <div className="text-sm text-red-600 dark:text-red-400">
