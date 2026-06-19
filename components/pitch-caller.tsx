@@ -111,6 +111,7 @@ export default function PitchCaller() {
   const [toast, setToast] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [showLineup, setShowLineup] = useState(false); // heads-up: lineup tucked away
+  const [online, setOnline] = useState(true); // trust indicator; data always saved locally
   const [pickingPitcher, setPickingPitcher] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
   // active wristband card (codes for relay); falls back to the default
@@ -292,6 +293,50 @@ export default function PitchCaller() {
     setToast(msg);
     setTimeout(() => setToast(null), 1400);
   };
+
+  // keep the screen awake during a game — a phone sleeping mid-at-bat in
+  // the dugout is maddening. Feature-detected; re-acquires when the tab
+  // returns to the foreground (the OS drops the lock on blur).
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (t: "screen") => Promise<{ release: () => void }> };
+    };
+    if (!nav.wakeLock) return;
+    let sentinel: { release: () => void } | null = null;
+    const acquire = async () => {
+      try {
+        sentinel = await nav.wakeLock!.request("screen");
+      } catch {
+        /* denied (low battery, etc.) — harmless */
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    void acquire();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      try {
+        sentinel?.release();
+      } catch {
+        /* already released */
+      }
+    };
+  }, []);
+
+  // online/offline for the trust indicator (every pitch is saved on the
+  // device regardless; this only tells you whether it's also syncing)
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
 
   /* ── derived ── */
   const curPitcher =
@@ -839,10 +884,31 @@ export default function PitchCaller() {
   return (
     <div className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[1100px] xl:max-w-[1440px]">
       {/* header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3.5 py-3">
-        <div className="text-lg font-bold tracking-wide">
-          PITCH
-          <span className="text-amber-600 dark:text-amber-400">CALL</span>
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/90 px-3.5 py-3 backdrop-blur-md">
+        <div className="flex items-center gap-2.5">
+          <div className="brand-glow text-lg font-extrabold uppercase tracking-[0.14em]">
+            PITCH
+            <span className="text-primary">CALL</span>
+          </div>
+          <span
+            aria-label={online ? "Online — synced" : "Offline — saved on this device"}
+            title={online ? "Synced" : "Offline — saved on this device"}
+            className={cn(
+              "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wider",
+              online
+                ? "border-green-500/40 text-green-600 dark:text-green-400"
+                : "border-amber-500/50 text-amber-600 dark:text-amber-400"
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                "size-1.5 rounded-full",
+                online ? "bg-green-500" : "bg-amber-500"
+              )}
+            />
+            {online ? "SAVED" : "OFFLINE"}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -1053,7 +1119,7 @@ export default function PitchCaller() {
                 >
                   {game.count.b}
                 </span>
-                <span className="text-muted-foreground/40">-</span>
+                <span className="text-muted-foreground/70">-</span>
                 <span
                   className={cn(
                     game.count.s >= 2
@@ -1109,7 +1175,7 @@ export default function PitchCaller() {
                 </span>
               )
             ) : (
-              <span className="text-xs font-semibold text-muted-foreground/50">
+              <span className="text-xs font-semibold text-muted-foreground/70">
                 pick pitch + spot
               </span>
             )}
@@ -1451,7 +1517,7 @@ export default function PitchCaller() {
                 ↻ RE-ANALYZE
               </button>
             )}
-            <div className="mt-2 text-center text-[10px] text-muted-foreground/60">
+            <div className="mt-2 text-center text-[10px] text-muted-foreground/75">
               AI-generated — your read overrules it.
             </div>
           </div>
@@ -1610,7 +1676,7 @@ const OUTCOME_LABEL: Record<string, string> = {
 function Strip({ pitches, defs }: { pitches: Pitch[]; defs: PitchDef[] }) {
   if (!pitches.length) {
     return (
-      <div className="px-0.5 py-1.5 text-sm text-muted-foreground/60">
+      <div className="px-0.5 py-1.5 text-sm text-muted-foreground/75">
         no pitches yet
       </div>
     );
@@ -1639,7 +1705,7 @@ function Strip({ pitches, defs }: { pitches: Pitch[]; defs: PitchDef[] }) {
                   "text-[10px] font-bold",
                   sw === "contact" && "text-red-600 dark:text-red-400",
                   sw === "miss" && "text-blue-600 dark:text-blue-400",
-                  sw === "none" && "text-muted-foreground/60"
+                  sw === "none" && "text-muted-foreground/75"
                 )}
               >
                 {OUTCOME_LABEL[p.outcome] ?? p.outcome[0].toUpperCase()}
@@ -1721,7 +1787,7 @@ function BatterView({
       </div>
 
       {!batter ? (
-        <div className="p-2.5 text-muted-foreground/60">
+        <div className="p-2.5 text-muted-foreground/75">
           No batter selected.
         </div>
       ) : (
@@ -1759,7 +1825,7 @@ function BatterView({
                     </div>
                   ))
                 ) : (
-                  <div className="font-mono text-xs text-muted-foreground/60">
+                  <div className="font-mono text-xs text-muted-foreground/75">
                     no contact yet
                   </div>
                 )}
@@ -1778,7 +1844,7 @@ function BatterView({
                     </div>
                   ))
                 ) : (
-                  <div className="font-mono text-xs text-muted-foreground/60">
+                  <div className="font-mono text-xs text-muted-foreground/75">
                     no whiffs yet
                   </div>
                 )}
@@ -1941,7 +2007,7 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
       )}
 
       {!total ? (
-        <div className="p-5 text-muted-foreground/60">
+        <div className="p-5 text-muted-foreground/75">
           {filter === "all"
             ? "Log some pitches to see tendencies."
             : "No pitches from this pitcher yet."}
@@ -2049,7 +2115,7 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
               );
             })}
           </div>
-          <div className="mt-3 font-mono text-[11px] leading-relaxed text-muted-foreground/60">
+          <div className="mt-3 font-mono text-[11px] leading-relaxed text-muted-foreground/75">
             Cells under 5 pitches are flagged red — they&apos;re too thin to
             read as a tendency. This view pools all batters; per-batter
             patterns live in the BATTER tab as sequence, not percentages.

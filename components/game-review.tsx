@@ -94,7 +94,7 @@ export default function GameReview({
 
   if (!shown.length) {
     return (
-      <div className="p-5 text-sm text-muted-foreground/60">
+      <div className="p-5 text-sm text-muted-foreground/75">
         No pitches logged for this selection.
       </div>
     );
@@ -263,7 +263,7 @@ function BatterCard({
                 </div>
               ))
             ) : (
-              <div className="font-mono text-xs text-muted-foreground/60">—</div>
+              <div className="font-mono text-xs text-muted-foreground/75">—</div>
             )}
           </div>
           <div className="rounded-2xl border border-blue-500/50 p-2.5">
@@ -280,14 +280,14 @@ function BatterCard({
                 </div>
               ))
             ) : (
-              <div className="font-mono text-xs text-muted-foreground/60">—</div>
+              <div className="font-mono text-xs text-muted-foreground/75">—</div>
             )}
           </div>
         </div>
         {spray.length > 0 ? (
           <FieldChart className="w-full" markers={spray} />
         ) : (
-          <div className="flex items-center justify-center rounded-2xl border border-dashed text-xs text-muted-foreground/50">
+          <div className="flex items-center justify-center rounded-2xl border border-dashed text-xs text-muted-foreground/70">
             no balls in play
           </div>
         )}

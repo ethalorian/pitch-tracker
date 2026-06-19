@@ -193,7 +193,7 @@ export default function DashboardPage() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-1 text-[10px] text-muted-foreground/60">
+                  <div className="mt-1 text-[10px] text-muted-foreground/75">
                     WHIFF% is your swing-and-miss rate per pitch — your
                     out-pitch is the high-whiff, low-hard line.
                   </div>
@@ -221,7 +221,7 @@ export default function DashboardPage() {
                             style={{ bottom: `${g.whiffPct ?? 0}%` }}
                           />
                         </div>
-                        <div className="text-[9px] text-muted-foreground">
+                        <div className="text-[11px] text-muted-foreground">
                           {g.label.split(" ").slice(-1)[0]}
                         </div>
                       </div>

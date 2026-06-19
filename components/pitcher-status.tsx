@@ -39,7 +39,7 @@ function DetectorRow({
       )}
     >
       <div className="min-w-[88px]">
-        <div className="text-[9px] font-semibold tracking-widest text-muted-foreground">
+        <div className="text-[11px] font-semibold tracking-widest text-muted-foreground">
           {kind}
         </div>
         <div className={cn("text-base font-extrabold leading-tight", LEVEL_TEXT[d.level])}>
@@ -105,7 +105,7 @@ export default function PitcherStatusPanel({
                     }}
                   />
                 </div>
-                <div className="scoreboard font-mono text-[9px] tabular-nums text-muted-foreground">
+                <div className="scoreboard font-mono text-[11px] tabular-nums text-muted-foreground">
                   {b.strikePct}
                 </div>
               </div>
@@ -116,7 +116,7 @@ export default function PitcherStatusPanel({
             {blocks.map((b, i) => (
               <div
                 key={i}
-                className="flex-1 text-center font-mono text-[9px] text-red-600/80 dark:text-red-400/80"
+                className="flex-1 text-center font-mono text-[11px] text-red-600/80 dark:text-red-400/80"
                 title={`${b.hard} hard-hit`}
               >
                 {b.hard > 0 ? `●${b.hard}` : ""}

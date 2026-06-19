@@ -279,7 +279,7 @@ function Legend({ className, label }: { className: string; label: string }) {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="py-2 font-mono text-xs text-muted-foreground/60">
+    <div className="py-2 font-mono text-xs text-muted-foreground/75">
       {children}
     </div>
   );

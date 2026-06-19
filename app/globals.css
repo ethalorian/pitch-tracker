@@ -24,12 +24,13 @@
   --secondary: oklch(0.955 0.006 250);
   --secondary-foreground: oklch(0.26 0.04 258);
   --muted: oklch(0.955 0.006 250);
-  --muted-foreground: oklch(0.5 0.025 256);
+  /* daylight: darker muted text + stronger borders so it reads in sun */
+  --muted-foreground: oklch(0.42 0.03 256);
   --accent: oklch(0.94 0.012 250);
   --accent-foreground: oklch(0.24 0.04 258);
-  --destructive: oklch(0.58 0.21 25);
-  --border: oklch(0.88 0.012 252);
-  --input: oklch(0.9 0.012 252);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0.81 0.014 252);
+  --input: oklch(0.84 0.014 252);
   --ring: oklch(0.74 0.15 73);
   /* charts mirror the pitch palette: FB CH DR CU SC */
   --chart-1: oklch(0.66 0.21 28);
@@ -60,7 +61,7 @@
   --secondary: oklch(0.28 0.034 258);
   --secondary-foreground: oklch(0.97 0.008 250);
   --muted: oklch(0.27 0.03 258);
-  --muted-foreground: oklch(0.74 0.03 252);
+  --muted-foreground: oklch(0.78 0.03 252);
   --accent: oklch(0.32 0.04 258);
   --accent-foreground: oklch(0.98 0.008 250);
   --destructive: oklch(0.68 0.2 24);
