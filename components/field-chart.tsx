@@ -29,10 +29,18 @@ export default function FieldChart({
   onTap,
   markers = [],
   className,
+  ghost = false,
+  bases,
+  onBase,
 }: {
   onTap?: (x: number, y: number) => void;
   markers?: SprayMarker[];
   className?: string;
+  /** dim the field + spray so overlaid controls read clearly */
+  ghost?: boolean;
+  /** runner state; when given with onBase, tappable bases render on the field */
+  bases?: { on1: boolean; on2: boolean; on3: boolean };
+  onBase?: (which: "on1" | "on2" | "on3") => void;
 }) {
   const ref = useRef<SVGSVGElement>(null);
 
@@ -54,6 +62,7 @@ export default function FieldChart({
       role={onTap ? "button" : "img"}
       aria-label={onTap ? "Tap where the ball went" : "Spray chart"}
     >
+      <g opacity={ghost ? 0.32 : 1}>
       {/* outfield fan */}
       <path
         d="M 50 72 L 6.2 28.2 A 62 62 0 0 1 93.8 28.2 Z"
@@ -123,6 +132,42 @@ export default function FieldChart({
           </g>
         );
       })}
+      </g>
+
+      {/* interactive bases at their true field positions (full opacity) */}
+      {bases &&
+        onBase &&
+        (
+          [
+            ["on1", 66, 56, "First base"],
+            ["on2", 50, 40, "Second base"],
+            ["on3", 34, 56, "Third base"],
+          ] as const
+        ).map(([k, cx, cy, label]) => {
+          const on = bases[k];
+          return (
+            <g
+              key={k}
+              onClick={(e) => {
+                e.stopPropagation();
+                onBase(k);
+              }}
+              role="button"
+              aria-label={`${label} ${on ? "occupied, tap to clear" : "empty, tap to set"}`}
+              style={{ cursor: "pointer" }}
+            >
+              <circle cx={cx} cy={cy} r="7" fill="transparent" />
+              <circle
+                cx={cx}
+                cy={cy}
+                r="3.8"
+                fill={on ? "var(--primary)" : "var(--card)"}
+                stroke={on ? "var(--primary)" : "var(--muted-foreground)"}
+                strokeWidth="1.5"
+              />
+            </g>
+          );
+        })}
     </svg>
   );
 }

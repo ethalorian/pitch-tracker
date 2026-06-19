@@ -868,18 +868,23 @@ export default function PitchCaller() {
   // ── game situation: outs / runners / score / inning (coach-set) ──
   const situation = game.situation ?? EMPTY_SITUATION;
   const cue = situationCue(situation);
-  // this game's balls in play → ghost spray behind the situation card
+  // the batter-up's balls in play → ghost spray on the situation field
   const liveSpray = useMemo<SprayMarker[]>(
     () =>
       game.pitches
-        .filter((p) => p.contact?.x != null && p.contact?.y != null)
+        .filter(
+          (p) =>
+            p.batterId === game.currentBatterId &&
+            p.contact?.x != null &&
+            p.contact?.y != null
+        )
         .map((p) => ({
           x: p.contact!.x!,
           y: p.contact!.y!,
           quality: p.contact!.quality,
           trajectory: p.contact!.trajectory,
         })),
-    [game.pitches]
+    [game.pitches, game.currentBatterId]
   );
   const setSituation = (patch: Partial<typeof situation>) =>
     setGame((g) => ({
