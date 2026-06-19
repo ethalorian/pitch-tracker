@@ -127,6 +127,30 @@ export async function endGame(id: string): Promise<boolean> {
   }
 }
 
+/** Permanently delete a game and its pitch log. */
+export async function deleteGame(id: string): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from("games").delete().eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/** Delete all games for one opponent team (used before deleting the team). */
+export async function deleteGamesForTeam(teamId: string): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from("games").delete().eq("team_id", teamId);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /** History list (metadata only — no state payload). */
 export async function listGames(): Promise<GameRow[]> {
   const sb = getSupabase();
