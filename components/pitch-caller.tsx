@@ -48,8 +48,11 @@ import SequencingView from "@/components/sequencing-view";
 import LineupPanel from "@/components/lineup-panel";
 import PitcherStatusPanel from "@/components/pitcher-status";
 import { analyzePitcherStatus } from "@/lib/pitcher-status";
+import SituationBar from "@/components/situation-bar";
+import { basesMask, situationCue } from "@/lib/situation";
 import {
   EMPTY_GAME,
+  EMPTY_SITUATION,
   TRAJ_LABEL,
   ZONES,
   swingOf,
@@ -112,6 +115,7 @@ export default function PitchCaller() {
   const [showSetup, setShowSetup] = useState(false);
   const [showLineup, setShowLineup] = useState(false); // heads-up: lineup tucked away
   const [online, setOnline] = useState(true); // trust indicator; data always saved locally
+  const [roster, setRoster] = useState<Pitcher[]>([]); // live staff for mid-game changes
   const [pickingPitcher, setPickingPitcher] = useState(false);
   const [firstRun, setFirstRun] = useState(false);
   // active wristband card (codes for relay); falls back to the default
@@ -279,10 +283,12 @@ export default function PitchCaller() {
   useEffect(() => {
     if (!loaded || checkedFirstRunRef.current) return;
     checkedFirstRunRef.current = true;
-    if (game.pitchers.length > 0 || game.pitches.length > 0) return;
     let live = true;
     listPitchers().then((ps) => {
-      if (live && ps.length === 0) setFirstRun(true);
+      if (!live) return;
+      setRoster(ps); // full staff, so you can bring in any pitcher mid-game
+      if (ps.length === 0 && game.pitchers.length === 0 && game.pitches.length === 0)
+        setFirstRun(true);
     });
     return () => {
       live = false;
@@ -339,8 +345,17 @@ export default function PitchCaller() {
   }, []);
 
   /* ── derived ── */
+  // every pitcher you could bring in: this game's snapshot + the live
+  // staff (so pitchers added after the game started still show up).
+  const availablePitchers = useMemo(() => {
+    const byId = new Map<string, Pitcher>();
+    for (const p of game.pitchers) byId.set(p.id, p);
+    for (const p of roster) if (!byId.has(p.id)) byId.set(p.id, p);
+    return [...byId.values()];
+  }, [game.pitchers, roster]);
+
   const curPitcher =
-    game.pitchers.find((p) => p.id === game.pitcherId) ?? null;
+    availablePitchers.find((p) => p.id === game.pitcherId) ?? null;
   const repertoire: PitchDef[] = curPitcher?.pitches.length
     ? curPitcher.pitches
     : STANDARD_PITCHES; // legacy games / no pitcher yet
@@ -632,6 +647,8 @@ export default function PitchCaller() {
         s: g.count.s,
         outcome: o,
         call: g.pending.call,
+        outs: (g.situation ?? EMPTY_SITUATION).outs,
+        bases: basesMask(g.situation),
         ts: Date.now(),
       };
       const pitches = [...g.pitches, pitch];
@@ -817,11 +834,44 @@ export default function PitchCaller() {
     }
   };
 
+  // ── game situation: outs / runners / score / inning (coach-set) ──
+  const situation = game.situation ?? EMPTY_SITUATION;
+  const cue = situationCue(situation);
+  const setSituation = (patch: Partial<typeof situation>) =>
+    setGame((g) => ({
+      ...g,
+      situation: { ...(g.situation ?? EMPTY_SITUATION), ...patch },
+    }));
+  const newHalf = () =>
+    setGame((g) => {
+      const s = g.situation ?? EMPTY_SITUATION;
+      const toBottom = s.half === "top";
+      return {
+        ...g,
+        situation: {
+          ...s,
+          outs: 0,
+          on1: false,
+          on2: false,
+          on3: false,
+          half: toBottom ? "bottom" : "top",
+          inning: toBottom ? s.inning : s.inning + 1,
+        },
+      };
+    });
+
   const changePitcher = (pitcherId: string) => {
     setPickingPitcher(false);
-    setGame((g) => ({ ...g, pitcherId, pending: {} }));
-    const p = game.pitchers.find((x) => x.id === pitcherId);
-    if (p) flash(`Now pitching: ${p.name}`);
+    if (pitcherId === game.pitcherId) return;
+    const p = availablePitchers.find((x) => x.id === pitcherId);
+    setGame((g) => {
+      // fold a newly-brought-in pitcher into the game so her repertoire,
+      // colors and stats resolve — batters and the pitch log are untouched.
+      const inGame = g.pitchers.some((x) => x.id === pitcherId);
+      const pitchers = inGame || !p ? g.pitchers : [...g.pitchers, p];
+      return { ...g, pitchers, pitcherId, pending: {} };
+    });
+    if (p) flash(`Now pitching: ${p.name}${p.number ? ` #${p.number}` : ""}`);
   };
 
   if (!loaded) {
@@ -985,46 +1035,59 @@ export default function PitchCaller() {
         </button>
         <button
           onClick={() =>
-            game.pitchers.length > 1
+            availablePitchers.length > 1
               ? setPickingPitcher((v) => !v)
               : undefined
           }
+          disabled={availablePitchers.length <= 1}
           aria-expanded={pickingPitcher}
+          aria-label="Change pitcher"
           className={cn(
-            "press flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm font-bold",
+            "press flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm font-bold disabled:opacity-60",
             pickingPitcher
-              ? "border-amber-500 text-amber-600 dark:text-amber-400"
+              ? "border-primary text-primary"
               : "border-border hover:bg-accent"
           )}
         >
-          {game.pitchers.length > 1 && <RefreshCw className="size-3.5" />}
+          {availablePitchers.length > 1 && <RefreshCw className="size-3.5" />}
           P: {curPitcher ? curPitcher.name : "—"}
         </button>
       </div>
 
-      {/* mid-game pitcher switch (batters and log untouched) */}
+      {/* mid-game pitcher switch (current batter, count and log untouched) */}
       {pickingPitcher && (
-        <div className="flex flex-wrap gap-1.5 border-b px-3.5 py-2">
-          {game.pitchers.map((p) => {
-            const on = p.id === game.pitcherId;
-            return (
-              <button
-                key={p.id}
-                onClick={() => changePitcher(p.id)}
-                className={cn(
-                  "rounded-lg border px-3 py-1.5 text-sm font-bold",
-                  on
-                    ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                    : "border-border hover:bg-accent"
-                )}
-              >
-                {p.name}
-                <span className="ml-1 text-[10px] text-muted-foreground">
-                  {p.pitches.length}p
-                </span>
-              </button>
-            );
-          })}
+        <div className="border-b px-3.5 py-2.5">
+          <div className="mb-1.5 text-[11px] font-bold tracking-widest text-muted-foreground">
+            BRING IN
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {availablePitchers.map((p) => {
+              const on = p.id === game.pitcherId;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => changePitcher(p.id)}
+                  aria-pressed={on}
+                  className={cn(
+                    "press rounded-2xl border px-3.5 py-2 text-sm font-bold",
+                    on
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border hover:bg-accent"
+                  )}
+                >
+                  {p.number && (
+                    <span className="scoreboard mr-1 font-mono">#{p.number}</span>
+                  )}
+                  {p.name}
+                  {on && (
+                    <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                      in
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1210,6 +1273,27 @@ export default function PitchCaller() {
               1ST-K
             </span>
           </div>
+
+          {/* game situation: outs / runners / score / inning */}
+          <div className="mb-2.5">
+            <SituationBar s={situation} set={setSituation} newHalf={newHalf} />
+          </div>
+
+          {/* situational cue — flags the spot, never names the pitch */}
+          {cue && (
+            <div
+              className={cn(
+                "animate-pop mb-2.5 flex items-center gap-2 rounded-2xl border-l-4 bg-card px-3 py-2 text-xs font-semibold leading-snug",
+                cue.tone === "warn"
+                  ? "border-l-red-500 text-red-600 dark:text-red-400"
+                  : cue.tone === "go"
+                    ? "border-l-green-500 text-green-600 dark:text-green-400"
+                    : "border-l-primary text-foreground"
+              )}
+            >
+              {cue.text}
+            </div>
+          )}
 
           {game.abOver && (
             <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-amber-500 bg-card px-3 py-2">

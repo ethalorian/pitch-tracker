@@ -73,6 +73,9 @@ export interface Pitch {
   contact?: ContactDetail;
   /** wristband code that was relayed for this call */
   call?: string;
+  /** game situation when this pitch was thrown (for situational analysis) */
+  outs?: number;
+  bases?: number; // bitmask: 1 = on 1st, 2 = on 2nd, 4 = on 3rd
   ts: number;
 }
 
@@ -81,6 +84,29 @@ export interface AbResult {
   batterId: string;
   result: AbEnd;
 }
+
+/** Live game situation — we're on defense, so "us" is our score. */
+export interface Situation {
+  outs: number; // 0–2
+  on1: boolean;
+  on2: boolean;
+  on3: boolean;
+  us: number; // our runs (defense)
+  them: number; // opponent runs (offense)
+  inning: number; // 1+
+  half: "top" | "bottom";
+}
+
+export const EMPTY_SITUATION: Situation = {
+  outs: 0,
+  on1: false,
+  on2: false,
+  on3: false,
+  us: 0,
+  them: 0,
+  inning: 1,
+  half: "top",
+};
 
 export interface GameState {
   /** snapshot of available pitchers at game start (offline safety) */
@@ -102,6 +128,8 @@ export interface GameState {
   pending: { type?: string; zone?: number; call?: string };
   abOver: boolean;
   lastLogged: string | null;
+  /** live outs/runners/score/inning; stamped onto each pitch */
+  situation: Situation;
 }
 
 export const EMPTY_GAME: GameState = {
@@ -120,6 +148,7 @@ export const EMPTY_GAME: GameState = {
   pending: {},
   abOver: false,
   lastLogged: null,
+  situation: EMPTY_SITUATION,
 };
 
 export const ZONES = [
