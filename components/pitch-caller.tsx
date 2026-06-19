@@ -72,6 +72,9 @@ const GAME_ID_KEY = "fastpitch-caller-game-id";
 const TS_KEY = "fastpitch-caller-ts";
 const ck = (b: number, s: number) => `${b}-${s}`;
 
+/** Swipe order for the three views (2-finger horizontal swipe in the PWA). */
+const VIEW_ORDER = ["call", "batter", "game"] as const;
+
 /**
  * Call targets: the four corners of the legacy 3×3 zone grid
  * (hi-in, hi-away, lo-in, lo-away). Indexes are unchanged so
@@ -860,6 +863,72 @@ export default function PitchCaller() {
       };
     });
 
+  // ── 2-finger horizontal swipe to move between views (PWA / iPad) ──
+  const swipeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = swipeRef.current;
+    if (!el) return;
+    let active = false;
+    let startX = 0;
+    let startY = 0;
+    let dx = 0;
+    let dy = 0;
+    const avg = (t: TouchList, key: "clientX" | "clientY") => {
+      let sum = 0;
+      for (let i = 0; i < t.length; i++) sum += t[i][key];
+      return sum / t.length;
+    };
+    const start = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        active = true;
+        startX = avg(e.touches, "clientX");
+        startY = avg(e.touches, "clientY");
+        dx = 0;
+        dy = 0;
+      } else {
+        active = false;
+      }
+    };
+    const move = (e: TouchEvent) => {
+      if (!active || e.touches.length < 2) return;
+      dx = avg(e.touches, "clientX") - startX;
+      dy = avg(e.touches, "clientY") - startY;
+      if (Math.abs(dx) > Math.abs(dy)) e.preventDefault(); // claim horizontal
+    };
+    const end = () => {
+      if (!active) return;
+      active = false;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+        const dir = dx < 0 ? 1 : -1;
+        setTab((t) => {
+          const i = VIEW_ORDER.indexOf(t);
+          // loop: swiping past the last view wraps to the first, and vice versa
+          const ni = (i + dir + VIEW_ORDER.length) % VIEW_ORDER.length;
+          const next = VIEW_ORDER[ni];
+          if (next !== t) {
+            if (next === "batter")
+              setViewBatter((v) => v ?? game.currentBatterId);
+            setToast(next.toUpperCase());
+            window.setTimeout(() => setToast(null), 1100);
+          }
+          return next;
+        });
+      }
+      dx = 0;
+      dy = 0;
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end, { passive: true });
+    el.addEventListener("touchcancel", end, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, [game.currentBatterId]);
+
   const changePitcher = (pitcherId: string) => {
     setPickingPitcher(false);
     if (pitcherId === game.pitcherId) return;
@@ -932,7 +1001,10 @@ export default function PitchCaller() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[1100px] lg:max-w-[1280px] xl:max-w-[1440px]">
+    <div
+      ref={swipeRef}
+      className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[900px]"
+    >
       {/* header — top padding clears the iPad status bar in standalone PWA */}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/90 px-3.5 pb-3 [padding-top:calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md">
         <div className="flex items-center gap-2.5">
@@ -1091,8 +1163,8 @@ export default function PitchCaller() {
         </div>
       )}
 
-      {/* tabs — phone only; iPad+ shows all panels at once */}
-      <div className="flex gap-1.5 px-3.5 pb-1 pt-2.5 md:hidden">
+      {/* view switcher — one big view at a time; 3-finger swipe also moves */}
+      <div className="flex items-center gap-1.5 px-3.5 pb-1 pt-2.5">
         {(
           [
             ["call", "CALL"],
@@ -1109,9 +1181,9 @@ export default function PitchCaller() {
             }}
             aria-pressed={tab === k}
             className={cn(
-              "press flex-1 rounded-lg border py-2.5 text-sm font-bold tracking-widest transition-colors",
+              "press flex-1 rounded-xl border py-2.5 text-sm font-bold tracking-widest transition-colors",
               tab === k
-                ? "border-amber-500 bg-amber-500 text-black"
+                ? "border-primary bg-primary text-primary-foreground"
                 : "border-border text-muted-foreground hover:bg-accent"
             )}
           >
@@ -1119,15 +1191,13 @@ export default function PitchCaller() {
           </button>
         ))}
       </div>
+      <div className="hidden px-3.5 pb-1 text-center text-[10px] tracking-widest text-muted-foreground/70 md:block">
+        swipe with two fingers to change view
+      </div>
 
-      {/* data-rich layout: phone = tabbed, md+ = call | batter | tendencies */}
-      <div className="md:grid md:grid-cols-[minmax(400px,480px)_minmax(0,1fr)] md:items-start md:gap-5 md:px-4 md:pt-3">
-        <section
-          className={cn(
-            tab !== "call" && "hidden",
-            "md:block md:rounded-xl md:border md:bg-card/30 md:py-1"
-          )}
-        >
+      {/* one full-size view at a time */}
+      <div className="px-1 pt-1 md:px-2">
+        <section className={cn(tab !== "call" && "hidden")}>
         <div className="px-3.5 py-2">
           {/* ── HEADS-UP: who's up + the count, oversized and unmissable.
               Lineup management and workload are demoted so the screen has
@@ -1517,13 +1587,8 @@ export default function PitchCaller() {
         </div>
         </section>
 
-        <div className="md:flex md:flex-col md:gap-5 lg:grid lg:grid-cols-2 lg:items-start">
-          <section
-            className={cn(
-              tab !== "batter" && "hidden",
-              "md:block md:rounded-xl md:border md:bg-card/30"
-            )}
-          >
+        <div>
+          <section className={cn(tab !== "batter" && "hidden")}>
             <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
               BATTER
             </div>
@@ -1535,12 +1600,7 @@ export default function PitchCaller() {
             />
           </section>
 
-          <section
-            className={cn(
-              tab !== "game" && "hidden",
-              "md:block md:rounded-xl md:border md:bg-card/30"
-            )}
-          >
+          <section className={cn(tab !== "game" && "hidden")}>
             <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
               GAME TENDENCIES
             </div>
