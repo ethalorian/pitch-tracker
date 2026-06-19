@@ -89,25 +89,21 @@ export default function PitcherStatusPanel({
           <div className="mb-1.5 mt-3 text-[10px] font-semibold tracking-widest text-muted-foreground">
             COMMAND TREND · strike% by block
           </div>
-          <div className="flex items-end gap-1.5" style={{ height: 52 }}>
+          {/* bars: direct children of a fixed-height, bottom-aligned row */}
+          <div className="flex h-24 items-end gap-1.5 pt-4">
             {blocks.map((b, i) => (
               <div
                 key={i}
-                className="flex flex-1 flex-col items-center gap-1"
+                className="relative flex-1 rounded-t-md"
+                style={{
+                  height: `${Math.max((b.strikePct / maxStrike) * 100, 2)}%`,
+                  background: barColor(b.strikePct),
+                }}
                 title={`pitches ${b.label}: ${b.strikePct}% strikes, ${b.hard} hard`}
               >
-                <div className="flex w-full flex-1 items-end">
-                  <div
-                    className="w-full rounded-t-md"
-                    style={{
-                      height: `${(b.strikePct / maxStrike) * 100}%`,
-                      background: barColor(b.strikePct),
-                    }}
-                  />
-                </div>
-                <div className="scoreboard font-mono text-[11px] tabular-nums text-muted-foreground">
+                <span className="tnum absolute -top-4 left-1/2 -translate-x-1/2 font-mono text-[10px] font-bold text-muted-foreground">
                   {b.strikePct}
-                </div>
+                </span>
               </div>
             ))}
           </div>

@@ -1725,40 +1725,36 @@ export default function PitchCaller() {
             </div>
           </div>
 
-          {/* command trend — strike% by 15-pitch block, hard-contact under */}
+          {/* command trend — strike% by block as a bar graph, hard-contact under */}
           {callTrend.blocks.length > 1 && (
             <div className="mt-4">
               <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
                 COMMAND TREND · strike% by block
               </div>
-              <div className="flex items-end gap-1.5" style={{ height: 60 }}>
+              {/* bars: direct children of a fixed-height, bottom-aligned row */}
+              <div className="flex h-32 items-end gap-1.5 rounded-xl border bg-card/40 px-2 pb-2 pt-5">
                 {callTrend.blocks.map((b, i) => (
                   <div
                     key={i}
-                    className="flex flex-1 flex-col items-center gap-1"
+                    className="relative flex-1 rounded-t-md"
+                    style={{
+                      height: `${Math.max(b.strikePct, 2)}%`,
+                      background:
+                        b.strikePct >= 60
+                          ? "#36d67a"
+                          : b.strikePct >= 45
+                            ? "var(--primary)"
+                            : "#ff5a3c",
+                    }}
                     title={`pitches ${b.label}: ${b.strikePct}% strikes, ${b.hard} hard`}
                   >
-                    <div className="flex w-full flex-1 items-end">
-                      <div
-                        className="w-full rounded-t-md"
-                        style={{
-                          height: `${Math.max(b.strikePct, 3)}%`,
-                          background:
-                            b.strikePct >= 60
-                              ? "#36d67a"
-                              : b.strikePct >= 45
-                                ? "var(--primary)"
-                                : "#ff5a3c",
-                        }}
-                      />
-                    </div>
-                    <div className="tnum scoreboard font-mono text-[11px] text-muted-foreground">
+                    <span className="tnum absolute -top-4 left-1/2 -translate-x-1/2 font-mono text-[10px] font-bold text-muted-foreground">
                       {b.strikePct}
-                    </div>
+                    </span>
                   </div>
                 ))}
               </div>
-              <div className="mt-1 flex gap-1.5">
+              <div className="mt-1 flex gap-1.5 px-2">
                 {callTrend.blocks.map((b, i) => (
                   <div
                     key={i}
