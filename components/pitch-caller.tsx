@@ -72,7 +72,7 @@ const GAME_ID_KEY = "fastpitch-caller-game-id";
 const TS_KEY = "fastpitch-caller-ts";
 const ck = (b: number, s: number) => `${b}-${s}`;
 
-/** Swipe order for the three views (2-finger horizontal swipe in the PWA). */
+/** Swipe order for the three views (single-finger horizontal flick). */
 const VIEW_ORDER = ["call", "batter", "game"] as const;
 
 /**
@@ -863,49 +863,56 @@ export default function PitchCaller() {
       };
     });
 
-  // ── 2-finger horizontal swipe to move between views (PWA / iPad) ──
+  // ── single-finger horizontal flick to move between views ──
+  // One finger is far more reliable on iOS than multi-touch (which the OS
+  // routes to its own zoom/scroll). We decide on touchend and never
+  // preventDefault, so normal scrolling and pinch-zoom keep working.
   const swipeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = swipeRef.current;
     if (!el) return;
-    let active = false;
-    let startX = 0;
-    let startY = 0;
-    let dx = 0;
-    let dy = 0;
-    const avg = (t: TouchList, key: "clientX" | "clientY") => {
-      let sum = 0;
-      for (let i = 0; i < t.length; i++) sum += t[i][key];
-      return sum / t.length;
+    let sx = 0;
+    let sy = 0;
+    let st = 0;
+    let tracking = false;
+    // don't hijack a flick that's really scrolling a horizontal strip/table
+    const onHorizScroller = (node: EventTarget | null): boolean => {
+      let n = node as HTMLElement | null;
+      while (n && n !== el) {
+        if (n.scrollWidth - n.clientWidth > 8) {
+          const ox = getComputedStyle(n).overflowX;
+          if (ox === "auto" || ox === "scroll") return true;
+        }
+        n = n.parentElement;
+      }
+      return false;
     };
     const start = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        active = true;
-        startX = avg(e.touches, "clientX");
-        startY = avg(e.touches, "clientY");
-        dx = 0;
-        dy = 0;
-      } else {
-        active = false;
+      if (e.touches.length !== 1 || onHorizScroller(e.target)) {
+        tracking = false;
+        return;
       }
+      tracking = true;
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+      st = Date.now();
     };
-    const move = (e: TouchEvent) => {
-      if (!active || e.touches.length < 2) return;
-      dx = avg(e.touches, "clientX") - startX;
-      dy = avg(e.touches, "clientY") - startY;
-      if (Math.abs(dx) > Math.abs(dy)) e.preventDefault(); // claim horizontal
-    };
-    const end = () => {
-      if (!active) return;
-      active = false;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+    const end = (e: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      const dt = Date.now() - st;
+      // a real horizontal flick: far enough, mostly sideways, quick enough
+      if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2 && dt < 700) {
         const dir = dx < 0 ? 1 : -1;
-        setTab((t) => {
-          const i = VIEW_ORDER.indexOf(t);
-          // loop: swiping past the last view wraps to the first, and vice versa
+        setTab((cur) => {
+          const i = VIEW_ORDER.indexOf(cur);
           const ni = (i + dir + VIEW_ORDER.length) % VIEW_ORDER.length;
           const next = VIEW_ORDER[ni];
-          if (next !== t) {
+          if (next !== cur) {
             if (next === "batter")
               setViewBatter((v) => v ?? game.currentBatterId);
             setToast(next.toUpperCase());
@@ -914,18 +921,12 @@ export default function PitchCaller() {
           return next;
         });
       }
-      dx = 0;
-      dy = 0;
     };
     el.addEventListener("touchstart", start, { passive: true });
-    el.addEventListener("touchmove", move, { passive: false });
     el.addEventListener("touchend", end, { passive: true });
-    el.addEventListener("touchcancel", end, { passive: true });
     return () => {
       el.removeEventListener("touchstart", start);
-      el.removeEventListener("touchmove", move);
       el.removeEventListener("touchend", end);
-      el.removeEventListener("touchcancel", end);
     };
   }, [game.currentBatterId]);
 
@@ -1003,7 +1004,6 @@ export default function PitchCaller() {
   return (
     <div
       ref={swipeRef}
-      style={{ touchAction: "pan-y" }}
       className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[900px]"
     >
       {/* header — top padding clears the iPad status bar in standalone PWA */}
@@ -1192,8 +1192,8 @@ export default function PitchCaller() {
           </button>
         ))}
       </div>
-      <div className="hidden px-3.5 pb-1 text-center text-[10px] tracking-widest text-muted-foreground/70 md:block">
-        swipe with two fingers to change view
+      <div className="px-3.5 pb-1 text-center text-[10px] tracking-widest text-muted-foreground/70">
+        swipe left or right to change view · or tap a label above
       </div>
 
       {/* one full-size view at a time */}
