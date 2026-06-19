@@ -28,6 +28,8 @@ export interface ContactDetail {
   y?: number;
   /** legacy coarse zone from the first iteration */
   field?: FieldZone;
+  /** what the ball in play became: an out, a hit, or reached on error */
+  result?: "out" | "hit" | "reach";
 }
 
 /** Classify an outcome by what the batter's bat did. */

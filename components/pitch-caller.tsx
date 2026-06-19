@@ -130,6 +130,9 @@ export default function PitchCaller() {
     null
   );
   const [contactTraj, setContactTraj] = useState<Trajectory | null>(null);
+  const [contactResult, setContactResult] = useState<
+    "out" | "hit" | "reach" | null
+  >(null);
   // AI insight
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightText, setInsightText] = useState<string | null>(null);
@@ -704,9 +707,10 @@ export default function PitchCaller() {
       flash(`${willEnd} · UP: #${nextBatter.jersey}`);
     }
     if (o === "inplay") {
-      // AB is over — dead time. Ask hard/weak, trajectory, and where.
+      // AB is over — dead time. Ask hard/weak, trajectory, out/hit, and where.
       setContactQuality(null);
       setContactTraj(null);
+      setContactResult(null);
       setContactFor("last");
     }
   };
@@ -717,23 +721,47 @@ export default function PitchCaller() {
     x: number,
     y: number
   ) => {
+    const result = contactResult;
     setGame((g) => {
       const pitches = [...g.pitches];
       for (let i = pitches.length - 1; i >= 0; i--) {
         if (pitches[i].outcome === "inplay") {
           pitches[i] = {
             ...pitches[i],
-            contact: { quality, trajectory, x, y },
+            contact: { quality, trajectory, x, y, result: result ?? undefined },
           };
           break;
         }
       }
-      return { ...g, pitches };
+      // an out auto-advances the count of outs; the 3rd out flips the half
+      let situation = g.situation ?? EMPTY_SITUATION;
+      if (result === "out") {
+        const nextOuts = situation.outs + 1;
+        situation =
+          nextOuts >= 3
+            ? {
+                ...situation,
+                outs: 0,
+                on1: false,
+                on2: false,
+                on3: false,
+                half: situation.half === "top" ? "bottom" : "top",
+                inning:
+                  situation.half === "top"
+                    ? situation.inning
+                    : situation.inning + 1,
+              }
+            : { ...situation, outs: nextOuts };
+      }
+      return { ...g, pitches, situation };
     });
     setContactFor(null);
     setContactQuality(null);
     setContactTraj(null);
-    flash(`${quality.toUpperCase()} ${TRAJ_LABEL[trajectory]}`);
+    setContactResult(null);
+    const resTag =
+      result === "out" ? " · OUT" : result === "hit" ? " · HIT" : result === "reach" ? " · REACH" : "";
+    flash(`${quality.toUpperCase()} ${TRAJ_LABEL[trajectory]}${resTag}`);
   };
 
   const startGame = (setup: GameSetup) => {
@@ -840,6 +868,19 @@ export default function PitchCaller() {
   // ── game situation: outs / runners / score / inning (coach-set) ──
   const situation = game.situation ?? EMPTY_SITUATION;
   const cue = situationCue(situation);
+  // this game's balls in play → ghost spray behind the situation card
+  const liveSpray = useMemo<SprayMarker[]>(
+    () =>
+      game.pitches
+        .filter((p) => p.contact?.x != null && p.contact?.y != null)
+        .map((p) => ({
+          x: p.contact!.x!,
+          y: p.contact!.y!,
+          quality: p.contact!.quality,
+          trajectory: p.contact!.trajectory,
+        })),
+    [game.pitches]
+  );
   const setSituation = (patch: Partial<typeof situation>) =>
     setGame((g) => ({
       ...g,
@@ -1203,31 +1244,30 @@ export default function PitchCaller() {
           {/* ── HEADS-UP: who's up + the count, oversized and unmissable.
               Lineup management and workload are demoted so the screen has
               one clear job per glance. ── */}
-          <div className="mb-2 flex items-stretch gap-2">
+          {/* Row 1: at bat · count · relay */}
+          <div className="mb-2.5 grid grid-cols-3 gap-2">
             <button
               onClick={() => setShowLineup((v) => !v)}
               aria-expanded={showLineup}
               aria-label="At bat — tap to open lineup"
-              className="press flex flex-1 flex-col justify-center rounded-2xl border bg-card px-4 py-3 text-left hover:bg-accent"
+              className="press flex flex-col justify-center rounded-2xl border bg-card px-3 py-2.5 text-left hover:bg-accent"
             >
-              <div className="text-[11px] tracking-widest text-muted-foreground">
+              <div className="text-[10px] tracking-widest text-muted-foreground">
                 AT BAT
               </div>
               <div className="flex items-baseline gap-1.5 leading-none">
-                <span className="text-[40px] font-extrabold leading-none">
+                <span className="text-3xl font-extrabold leading-none">
                   {curBatter ? `#${curBatter.jersey}` : "—"}
                 </span>
                 {curBatter && (
-                  <span className="text-base font-bold text-muted-foreground">
+                  <span className="text-sm font-bold text-muted-foreground">
                     {curBatter.hand}HH
                   </span>
                 )}
               </div>
-              <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                 <span>
-                  {onDeckBatter
-                    ? `on deck #${onDeckBatter.jersey}`
-                    : "tap to set lineup"}
+                  {onDeckBatter ? `next #${onDeckBatter.jersey}` : "set lineup"}
                 </span>
                 <ChevronDown
                   className={cn(
@@ -1238,12 +1278,12 @@ export default function PitchCaller() {
               </div>
             </button>
 
-            <div className="flex min-w-[150px] flex-col items-center justify-center rounded-2xl border bg-card px-3 py-2">
-              <div className="text-[11px] tracking-widest text-muted-foreground">
+            <div className="flex flex-col items-center justify-center rounded-2xl border bg-card px-2 py-2">
+              <div className="text-[10px] tracking-widest text-muted-foreground">
                 COUNT
               </div>
               {/* pressure cues: 3 balls = walk risk, 2 strikes = put-away time */}
-              <div className="tnum scoreboard font-mono text-[64px] font-extrabold leading-none">
+              <div className="tnum scoreboard font-mono text-5xl font-extrabold leading-none">
                 <span
                   className={cn(
                     game.count.b >= 3
@@ -1265,6 +1305,34 @@ export default function PitchCaller() {
                 </span>
               </div>
             </div>
+
+            {/* relay code you read aloud — tap to redraw */}
+            <button
+              onClick={rerollCall}
+              disabled={game.pending.type == null || game.pending.zone == null}
+              aria-label="Relay code — tap to redraw"
+              title="Tap to redraw a code for the same call"
+              className="press flex flex-col items-center justify-center rounded-2xl border bg-card px-2 py-2 hover:bg-accent disabled:hover:bg-card"
+            >
+              <div className="text-[10px] tracking-widest text-muted-foreground">
+                RELAY
+              </div>
+              {game.pending.type != null && game.pending.zone != null ? (
+                game.pending.call ? (
+                  <span className="animate-pop font-mono text-4xl font-extrabold leading-none tracking-[0.1em] text-amber-600 dark:text-amber-400">
+                    {game.pending.call}
+                  </span>
+                ) : (
+                  <span className="py-2 text-sm font-bold text-red-600 dark:text-red-400">
+                    NOT ON CARD
+                  </span>
+                )
+              ) : (
+                <span className="py-1.5 font-mono text-3xl font-extrabold leading-none tracking-[0.2em] text-muted-foreground/25">
+                  ···
+                </span>
+              )}
+            </button>
           </div>
 
           {/* lineup management: tucked away, one tap from the hero */}
@@ -1287,10 +1355,16 @@ export default function PitchCaller() {
             </div>
           )}
 
+          {/* two columns: situation + intel (left) · the call input (right) */}
+          <div className="grid gap-3 sm:grid-cols-2 sm:items-start">
+            <div className="flex flex-col gap-2.5">
           {/* game situation — prominent: outs / runners / score / inning */}
-          <div className="mb-2.5">
-            <SituationBar s={situation} set={setSituation} newHalf={newHalf} />
-          </div>
+          <SituationBar
+            s={situation}
+            set={setSituation}
+            newHalf={newHalf}
+            spray={liveSpray}
+          />
 
           {/* situational cue — flags the spot, never names the pitch */}
           {cue && (
@@ -1307,34 +1381,6 @@ export default function PitchCaller() {
               {cue.text}
             </div>
           )}
-
-          {/* RELAY: the code you read aloud — full-width, big when armed */}
-          <button
-            onClick={rerollCall}
-            disabled={game.pending.type == null || game.pending.zone == null}
-            aria-label="Relay code — tap to redraw"
-            title="Tap to redraw a code for the same call"
-            className="press mb-2 flex w-full items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-2.5 hover:bg-accent disabled:hover:bg-card"
-          >
-            <span className="text-[11px] tracking-widest text-muted-foreground">
-              RELAY
-            </span>
-            {game.pending.type != null && game.pending.zone != null ? (
-              game.pending.call ? (
-                <span className="animate-pop font-mono text-5xl font-extrabold leading-none tracking-[0.18em] text-amber-600 dark:text-amber-400">
-                  {game.pending.call}
-                </span>
-              ) : (
-                <span className="text-sm font-bold text-red-600 dark:text-red-400">
-                  NOT ON CARD
-                </span>
-              )
-            ) : (
-              <span className="text-xs font-semibold text-muted-foreground/70">
-                pick pitch + spot
-              </span>
-            )}
-          </button>
 
           {/* workload: one quiet line, not three competing tiles */}
           <div className="mb-2.5 flex items-center justify-center gap-3 text-[11px] font-medium tracking-wide text-muted-foreground">
@@ -1410,7 +1456,9 @@ export default function PitchCaller() {
               )}
             </div>
           )}
+            </div>
 
+            <div className="flex flex-col">
           {/* pitch types — adapts to the current pitcher's repertoire */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
             <span>① PITCH</span>
@@ -1570,6 +1618,8 @@ export default function PitchCaller() {
               ))}
             </div>
           </div>
+            </div>
+          </div>
 
           {/* live AB strip */}
           <div className="mt-4">
@@ -1727,10 +1777,39 @@ export default function PitchCaller() {
               ))}
             </div>
 
+            {/* out / hit / reached — an OUT auto-advances the outs count */}
+            <div className="mb-3 grid grid-cols-3 gap-2">
+              {(
+                [
+                  ["out", "OUT", "green"],
+                  ["hit", "HIT", "red"],
+                  ["reach", "REACH", "amber"],
+                ] as const
+              ).map(([r, label, tone]) => (
+                <button
+                  key={r}
+                  onClick={() => setContactResult(r)}
+                  aria-pressed={contactResult === r}
+                  className={cn(
+                    "press rounded-2xl border-2 py-4 text-base font-extrabold tracking-wide",
+                    contactResult === r
+                      ? tone === "green"
+                        ? "border-green-500 bg-green-500/15 text-green-600 dark:text-green-400"
+                        : tone === "red"
+                          ? "border-red-500 bg-red-500/15 text-red-600 dark:text-red-400"
+                          : "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div
               className={cn(
                 "mx-auto max-w-[520px] rounded-2xl border-2",
-                contactQuality && contactTraj
+                contactQuality && contactTraj && contactResult
                   ? "border-amber-500"
                   : "pointer-events-none opacity-40"
               )}
@@ -1740,14 +1819,15 @@ export default function PitchCaller() {
                 onTap={(x, y) =>
                   contactQuality &&
                   contactTraj &&
+                  contactResult &&
                   tagContact(contactQuality, contactTraj, x, y)
                 }
               />
             </div>
             <div className="mt-3 text-center text-sm text-muted-foreground">
-              {contactQuality && contactTraj
+              {contactQuality && contactTraj && contactResult
                 ? "tap the field where it went"
-                : "pick quality + trajectory, then tap the field"}
+                : "pick quality, type, and out/hit — then tap the field"}
             </div>
           </div>
         </div>

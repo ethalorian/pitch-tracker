@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { basesLabel } from "@/lib/situation";
+import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import type { Situation } from "@/lib/types";
 
 /**
@@ -13,14 +14,25 @@ export default function SituationBar({
   s,
   set,
   newHalf,
+  spray = [],
 }: {
   s: Situation;
   set: (patch: Partial<Situation>) => void;
   newHalf: () => void;
+  spray?: SprayMarker[];
 }) {
   return (
-    <div className="rounded-2xl border-2 border-primary/40 bg-card px-3.5 py-3">
-      <div className="mb-2.5 flex items-center justify-between">
+    <div className="relative overflow-hidden rounded-2xl border-2 border-primary/40 bg-card px-3.5 py-3">
+      {/* ghost spray chart of this game's balls in play, behind the controls */}
+      {spray.length > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.12]"
+        >
+          <FieldChart className="h-full w-auto max-w-none" markers={spray} />
+        </div>
+      )}
+      <div className="relative mb-2.5 flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-widest text-primary">
           SITUATION
         </span>
@@ -28,7 +40,7 @@ export default function SituationBar({
           {basesLabel(s)}
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+      <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2.5">
         {/* inning + half */}
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
@@ -86,7 +98,7 @@ export default function SituationBar({
       </div>
 
       {/* score — we're on defense */}
-      <div className="mt-2.5 flex items-center gap-5 border-t pt-2.5">
+      <div className="relative mt-2.5 flex items-center gap-5 border-t pt-2.5">
         <ScoreStep label="US" value={s.us} onDelta={(d) => set({ us: Math.max(0, s.us + d) })} accent />
         <ScoreStep label="OPP" value={s.them} onDelta={(d) => set({ them: Math.max(0, s.them + d) })} />
       </div>
