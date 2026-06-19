@@ -882,9 +882,9 @@ export default function PitchCaller() {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[1100px] xl:max-w-[1440px]">
-      {/* header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/90 px-3.5 py-3 backdrop-blur-md">
+    <div className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[1100px] lg:max-w-[1280px] xl:max-w-[1440px]">
+      {/* header — top padding clears the iPad status bar in standalone PWA */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/90 px-3.5 pb-3 [padding-top:calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md">
         <div className="flex items-center gap-2.5">
           <div className="brand-glow text-lg font-extrabold uppercase tracking-[0.14em]">
             PITCH
@@ -1433,7 +1433,7 @@ export default function PitchCaller() {
         </div>
         </section>
 
-        <div className="md:flex md:flex-col md:gap-5 xl:grid xl:grid-cols-2 xl:items-start">
+        <div className="md:flex md:flex-col md:gap-5 lg:grid lg:grid-cols-2 lg:items-start">
           <section
             className={cn(
               tab !== "batter" && "hidden",

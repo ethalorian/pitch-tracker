@@ -21,7 +21,7 @@ export default function AppHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/70 bg-background/80 px-3.5 py-2.5 backdrop-blur-md">
+    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/70 bg-background/80 px-3.5 pb-2.5 [padding-top:calc(env(safe-area-inset-top,0px)+0.625rem)] backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-2.5">
         <Link
           href={backHref}

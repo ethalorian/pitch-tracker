@@ -16,6 +16,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PitchCall",
   description: "Live pitch-calling tracker for fastpitch softball",
+  applicationName: "PitchCall",
+  // iPad home-screen install: launch full-screen, no Safari chrome
+  appleWebApp: {
+    capable: true,
+    title: "PitchCall",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 // edge-to-edge on phones; sticky headers respect the notch
