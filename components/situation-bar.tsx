@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { basesLabel } from "@/lib/situation";
 import type { Situation } from "@/lib/types";
 
 /**
@@ -18,7 +19,15 @@ export default function SituationBar({
   newHalf: () => void;
 }) {
   return (
-    <div className="rounded-2xl border bg-card px-3 py-2.5">
+    <div className="rounded-2xl border-2 border-primary/40 bg-card px-3.5 py-3">
+      <div className="mb-2.5 flex items-center justify-between">
+        <span className="text-[11px] font-bold tracking-widest text-primary">
+          SITUATION
+        </span>
+        <span className="text-[11px] font-semibold tracking-wide text-muted-foreground">
+          {basesLabel(s)}
+        </span>
+      </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
         {/* inning + half */}
         <div className="flex items-center gap-1.5">
@@ -28,7 +37,7 @@ export default function SituationBar({
           <button
             onClick={() => set({ half: s.half === "top" ? "bottom" : "top" })}
             aria-label={`Half-inning: ${s.half}, tap to toggle`}
-            className="press rounded-lg border px-2 py-1 text-xs font-bold"
+            className="press rounded-xl border px-3 py-1.5 text-sm font-bold"
           >
             {s.half === "top" ? "▲" : "▼"}
           </button>
@@ -53,7 +62,7 @@ export default function SituationBar({
                 key={i}
                 aria-hidden
                 className={cn(
-                  "size-3 rounded-full border-2",
+                  "size-4 rounded-full border-2",
                   i < s.outs
                     ? "border-primary bg-primary"
                     : "border-muted-foreground/50"
@@ -97,7 +106,7 @@ function Stepper({
       <button
         onClick={() => onDelta(-1)}
         aria-label="Decrease"
-        className="press size-6 rounded-lg border text-sm font-bold leading-none text-muted-foreground hover:bg-accent"
+        className="press size-9 rounded-xl border text-base font-bold leading-none text-muted-foreground hover:bg-accent"
       >
         −
       </button>
@@ -107,7 +116,7 @@ function Stepper({
       <button
         onClick={() => onDelta(1)}
         aria-label="Increase"
-        className="press size-6 rounded-lg border text-sm font-bold leading-none text-muted-foreground hover:bg-accent"
+        className="press size-9 rounded-xl border text-base font-bold leading-none text-muted-foreground hover:bg-accent"
       >
         +
       </button>
@@ -134,7 +143,7 @@ function ScoreStep({
       <button
         onClick={() => onDelta(-1)}
         aria-label={`${label} minus`}
-        className="press size-6 rounded-lg border text-sm font-bold leading-none text-muted-foreground hover:bg-accent"
+        className="press size-9 rounded-xl border text-base font-bold leading-none text-muted-foreground hover:bg-accent"
       >
         −
       </button>
@@ -149,7 +158,7 @@ function ScoreStep({
       <button
         onClick={() => onDelta(1)}
         aria-label={`${label} plus`}
-        className="press size-6 rounded-lg border text-sm font-bold leading-none text-muted-foreground hover:bg-accent"
+        className="press size-9 rounded-xl border text-base font-bold leading-none text-muted-foreground hover:bg-accent"
       >
         +
       </button>
@@ -166,37 +175,42 @@ function Diamond({
   set: (patch: Partial<Situation>) => void;
 }) {
   const base = (on: boolean, cx: number, cy: number, toggle: () => void, label: string) => (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={7}
+    <g
       onClick={toggle}
       role="button"
-      aria-label={`${label} ${on ? "occupied" : "empty"}`}
+      aria-label={`${label} ${on ? "occupied, tap to clear" : "empty, tap to set"}`}
       style={{ cursor: "pointer" }}
-      fill={on ? "var(--primary)" : "var(--card)"}
-      stroke={on ? "var(--primary)" : "var(--muted-foreground)"}
-      strokeWidth={2}
-    />
+    >
+      {/* generous transparent hit area for finger taps */}
+      <circle cx={cx} cy={cy} r={16} fill="transparent" />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={10}
+        fill={on ? "var(--primary)" : "var(--card)"}
+        stroke={on ? "var(--primary)" : "var(--muted-foreground)"}
+        strokeWidth={2.5}
+      />
+    </g>
   );
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <span className="text-[10px] font-semibold tracking-widest text-muted-foreground">
         BASES
       </span>
-      <svg viewBox="0 0 60 60" className="h-12 w-12" aria-hidden="false">
+      <svg viewBox="0 0 60 60" className="h-20 w-20" aria-hidden="false">
         {/* diamond guide */}
         <path
           d="M30 50 L50 30 L30 10 L10 30 Z"
           fill="none"
           stroke="var(--border)"
-          strokeWidth={1.5}
+          strokeWidth={2}
         />
         {base(s.on1, 50, 30, () => set({ on1: !s.on1 }), "First base")}
         {base(s.on2, 30, 10, () => set({ on2: !s.on2 }), "Second base")}
         {base(s.on3, 10, 30, () => set({ on3: !s.on3 }), "Third base")}
         {/* home plate marker */}
-        <rect x="26" y="46" width="8" height="8" rx="1.5" fill="var(--muted-foreground)" />
+        <rect x="25" y="45" width="10" height="10" rx="2" fill="var(--muted-foreground)" />
       </svg>
     </div>
   );

@@ -1003,6 +1003,7 @@ export default function PitchCaller() {
   return (
     <div
       ref={swipeRef}
+      style={{ touchAction: "pan-y" }}
       className="relative mx-auto w-full max-w-[480px] pb-24 font-sans md:max-w-[900px]"
     >
       {/* header — top padding clears the iPad status bar in standalone PWA */}
@@ -1286,6 +1287,27 @@ export default function PitchCaller() {
             </div>
           )}
 
+          {/* game situation — prominent: outs / runners / score / inning */}
+          <div className="mb-2.5">
+            <SituationBar s={situation} set={setSituation} newHalf={newHalf} />
+          </div>
+
+          {/* situational cue — flags the spot, never names the pitch */}
+          {cue && (
+            <div
+              className={cn(
+                "animate-pop mb-2.5 flex items-center gap-2 rounded-2xl border-2 px-3.5 py-2.5 text-sm font-bold leading-snug",
+                cue.tone === "warn"
+                  ? "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400"
+                  : cue.tone === "go"
+                    ? "border-green-500/60 bg-green-500/10 text-green-600 dark:text-green-400"
+                    : "border-primary/50 bg-primary/10 text-foreground"
+              )}
+            >
+              {cue.text}
+            </div>
+          )}
+
           {/* RELAY: the code you read aloud — full-width, big when armed */}
           <button
             onClick={rerollCall}
@@ -1343,27 +1365,6 @@ export default function PitchCaller() {
               1ST-K
             </span>
           </div>
-
-          {/* game situation: outs / runners / score / inning */}
-          <div className="mb-2.5">
-            <SituationBar s={situation} set={setSituation} newHalf={newHalf} />
-          </div>
-
-          {/* situational cue — flags the spot, never names the pitch */}
-          {cue && (
-            <div
-              className={cn(
-                "animate-pop mb-2.5 flex items-center gap-2 rounded-2xl border-l-4 bg-card px-3 py-2 text-xs font-semibold leading-snug",
-                cue.tone === "warn"
-                  ? "border-l-red-500 text-red-600 dark:text-red-400"
-                  : cue.tone === "go"
-                    ? "border-l-green-500 text-green-600 dark:text-green-400"
-                    : "border-l-primary text-foreground"
-              )}
-            >
-              {cue.text}
-            </div>
-          )}
 
           {game.abOver && (
             <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-amber-500 bg-card px-3 py-2">
@@ -1670,10 +1671,10 @@ export default function PitchCaller() {
 
       {/* post-IN-PLAY contact detail: hard/weak + trajectory, then tap the field */}
       {contactFor && (
-        <div className="animate-overlay-in fixed inset-0 z-30 flex items-end justify-center overflow-y-auto bg-background/80 p-4 pb-10 backdrop-blur-sm">
-          <div className="animate-sheet-in w-full max-w-[440px] rounded-xl border bg-card p-4">
-            <div className="mb-2.5 flex items-center justify-between">
-              <div className="text-xs font-bold tracking-widest text-amber-600 dark:text-amber-400">
+        <div className="animate-overlay-in fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm">
+          <div className="animate-sheet-in my-auto w-full max-w-[640px] rounded-2xl border bg-card p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
                 BALL IN PLAY — HOW &amp; WHERE?
               </div>
               <button
@@ -1688,14 +1689,14 @@ export default function PitchCaller() {
               </button>
             </div>
 
-            <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+            <div className="mb-2 grid grid-cols-2 gap-2">
               {(["hard", "weak"] as const).map((q) => (
                 <button
                   key={q}
                   onClick={() => setContactQuality(q)}
                   aria-pressed={contactQuality === q}
                   className={cn(
-                    "press rounded-xl border-2 py-3 text-base font-bold tracking-wide",
+                    "press rounded-2xl border-2 py-4 text-lg font-extrabold tracking-wide",
                     contactQuality === q
                       ? q === "hard"
                         ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
@@ -1708,14 +1709,14 @@ export default function PitchCaller() {
               ))}
             </div>
 
-            <div className="mb-2.5 grid grid-cols-3 gap-1.5">
+            <div className="mb-3 grid grid-cols-3 gap-2">
               {(["ground", "line", "fly"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setContactTraj(t)}
                   aria-pressed={contactTraj === t}
                   className={cn(
-                    "press rounded-xl border-2 py-3 text-sm font-bold tracking-wide",
+                    "press rounded-2xl border-2 py-4 text-base font-bold tracking-wide",
                     contactTraj === t
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border text-muted-foreground hover:bg-accent"
@@ -1728,7 +1729,7 @@ export default function PitchCaller() {
 
             <div
               className={cn(
-                "rounded-xl border",
+                "mx-auto max-w-[520px] rounded-2xl border-2",
                 contactQuality && contactTraj
                   ? "border-amber-500"
                   : "pointer-events-none opacity-40"
@@ -1743,7 +1744,7 @@ export default function PitchCaller() {
                 }
               />
             </div>
-            <div className="mt-2 text-center text-xs text-muted-foreground">
+            <div className="mt-3 text-center text-sm text-muted-foreground">
               {contactQuality && contactTraj
                 ? "tap the field where it went"
                 : "pick quality + trajectory, then tap the field"}
