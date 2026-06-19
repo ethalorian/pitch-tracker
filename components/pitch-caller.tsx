@@ -46,6 +46,8 @@ import { buildInsightSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import SequencingView from "@/components/sequencing-view";
 import LineupPanel from "@/components/lineup-panel";
+import PitcherStatusPanel from "@/components/pitcher-status";
+import { analyzePitcherStatus } from "@/lib/pitcher-status";
 import {
   EMPTY_GAME,
   TRAJ_LABEL,
@@ -1886,6 +1888,25 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
     [pitches]
   );
 
+  // per-pitcher status: tiring (command) + on her (contact), this game
+  const statuses = useMemo(() => {
+    const byP = new Map<string, Pitch[]>();
+    for (const p of pitches) {
+      if (p.outcome == null) continue;
+      const k = p.pitcherId ?? "unknown";
+      const arr = byP.get(k) ?? [];
+      arr.push(p);
+      byP.set(k, arr);
+    }
+    return [...byP.entries()]
+      .map(([pid, ps]) => ({
+        pid,
+        name: game.pitchers.find((pp) => pp.id === pid)?.name ?? "Pitcher",
+        status: analyzePitcherStatus(ps, game.abResults),
+      }))
+      .sort((a, b) => b.status.total - a.status.total);
+  }, [pitches, game.pitchers, game.abResults]);
+
   return (
     <div className="px-3.5 py-2">
       {/* pitcher filter — tendencies are pitcher-specific */}
@@ -1927,6 +1948,14 @@ function GameView({ game, defs }: { game: GameState; defs: PitchDef[] }) {
         </div>
       ) : (
         <>
+          {statuses.length > 0 && (
+            <div className="mb-4 flex flex-col gap-2.5">
+              {statuses.map((s) => (
+                <PitcherStatusPanel key={s.pid} name={s.name} status={s.status} />
+              ))}
+            </div>
+          )}
+
           {teamSpray.length > 0 && (
             <div className="mb-3.5 rounded-2xl border bg-card p-3">
               <div className="mb-1 flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground">
