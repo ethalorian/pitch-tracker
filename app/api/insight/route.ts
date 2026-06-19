@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
-import { INSIGHT_SYSTEM } from "@/lib/insight";
+import { INSIGHT_SYSTEM, REC_SYSTEM } from "@/lib/insight";
 
 export const runtime = "nodejs";
 
@@ -32,9 +32,11 @@ export async function POST(request: NextRequest) {
   }
 
   let summary = "";
+  let mode: "insight" | "rec" = "insight";
   try {
     const body = await request.json();
     summary = typeof body?.summary === "string" ? body.summary : "";
+    if (body?.mode === "rec") mode = "rec";
   } catch {
     /* fall through to empty check */
   }
@@ -49,8 +51,8 @@ export async function POST(request: NextRequest) {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 700,
-      system: INSIGHT_SYSTEM,
+      max_tokens: mode === "rec" ? 400 : 700,
+      system: mode === "rec" ? REC_SYSTEM : INSIGHT_SYSTEM,
       messages: [{ role: "user", content: summary }],
     });
     const text = msg.content

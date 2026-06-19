@@ -11,17 +11,43 @@ import type { Situation } from "@/lib/types";
  * directly onto their true positions — so you read the real picture at a
  * glance. Inning, outs and score sit below. All coach-set, stamped per pitch.
  */
+export interface BatterSummary {
+  label: string;
+  pa: number;
+  seen: number;
+  k: number;
+  bb: number;
+  ip: number;
+  hits: number;
+  hard: number;
+  whiff: number;
+}
+
 export default function SituationBar({
   s,
   set,
   newHalf,
   spray = [],
+  batter = null,
+  onRecommend,
 }: {
   s: Situation;
   set: (patch: Partial<Situation>) => void;
   newHalf: () => void;
   spray?: SprayMarker[];
+  batter?: BatterSummary | null;
+  onRecommend?: () => void;
 }) {
+  const line =
+    batter &&
+    ([
+      batter.k ? `${batter.k}K` : "",
+      batter.bb ? `${batter.bb}BB` : "",
+      batter.hits ? `${batter.hits}H` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || (batter.seen ? "in progress" : "first look"));
+
   return (
     <div className="flex h-full flex-col rounded-2xl border-2 border-primary/40 bg-card px-3.5 py-3">
       <div className="mb-2 flex items-center justify-between">
@@ -32,6 +58,46 @@ export default function SituationBar({
           {basesLabel(s)}
         </span>
       </div>
+
+      {/* batter outcome summary + AI recommendation */}
+      {batter && (
+        <div className="mb-2.5 flex items-center justify-between gap-2 rounded-xl border bg-background/40 px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-sm font-extrabold leading-tight">
+              {batter.label}
+              <span className="ml-1.5 text-[11px] font-semibold text-muted-foreground">
+                {batter.pa} PA
+              </span>
+            </div>
+            <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>{line}</span>
+              {(batter.hard > 0 || batter.whiff > 0) && (
+                <span className="tnum">
+                  {batter.hard > 0 && (
+                    <span className="text-red-600 dark:text-red-400">
+                      ●{batter.hard}
+                    </span>
+                  )}
+                  {batter.whiff > 0 && (
+                    <span className="ml-1 text-blue-600 dark:text-blue-400">
+                      ○{batter.whiff}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          </div>
+          {onRecommend && (
+            <button
+              onClick={onRecommend}
+              aria-label="Get an AI strategy for this batter"
+              className="press shrink-0 rounded-xl bg-primary px-3 py-2 text-[11px] font-extrabold tracking-widest text-primary-foreground hover:bg-primary/90"
+            >
+              ✦ RECOMMEND
+            </button>
+          )}
+        </div>
+      )}
 
       {/* field: ghosted spray for the batter at bat, tappable bases overlaid */}
       <div className="mb-3 overflow-hidden rounded-xl border bg-background/40">

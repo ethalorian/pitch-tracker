@@ -42,7 +42,7 @@ import {
   randomCall,
   type CallCardBuckets,
 } from "@/lib/callsheet";
-import { buildInsightSummary } from "@/lib/insight";
+import { buildInsightSummary, buildBatterRecSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import SequencingView from "@/components/sequencing-view";
 import LineupPanel from "@/components/lineup-panel";
@@ -139,6 +139,8 @@ export default function PitchCaller() {
   const [insightText, setInsightText] = useState<string | null>(null);
   const [insightError, setInsightError] = useState<string | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
+  const [insightTitle, setInsightTitle] = useState("INSIGHT");
+  const insightRunRef = useRef<() => void>(() => {});
 
   // true after hydration; gates rendering so SSR and first client render match
   const hydrated = useSyncExternalStore(
@@ -855,11 +857,18 @@ export default function PitchCaller() {
     flash("Last pitch undone");
   };
 
-  const fetchInsight = async () => {
+  // shared call to the relay API; mode "rec" = per-batter strategy
+  const runInsight = async (
+    summary: string,
+    mode: "insight" | "rec",
+    title: string,
+    rerun: () => void
+  ) => {
+    insightRunRef.current = rerun;
+    setInsightTitle(title);
     setInsightOpen(true);
     setInsightError(null);
     setInsightText(null);
-    const summary = buildInsightSummary(game);
     if (!summary.trim()) {
       setInsightError("Log some pitches first — nothing to analyze yet.");
       return;
@@ -869,19 +878,34 @@ export default function PitchCaller() {
       const res = await fetch("/api/insight", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary }),
+        body: JSON.stringify({ summary, mode }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setInsightError(data?.error ?? "Insight request failed.");
-      } else {
-        setInsightText(data.insight ?? "");
-      }
+      if (!res.ok) setInsightError(data?.error ?? "Request failed.");
+      else setInsightText(data.insight ?? "");
     } catch {
       setInsightError("Network error — check your connection.");
     } finally {
       setInsightLoading(false);
     }
+  };
+
+  const fetchInsight = () =>
+    runInsight(
+      buildInsightSummary(game),
+      "insight",
+      `INSIGHT · ${curPitcher?.name ?? "pitcher"}`,
+      fetchInsight
+    );
+
+  const fetchBatterRec = () => {
+    if (!curBatter) return;
+    runInsight(
+      buildBatterRecSummary(game, curBatter.id),
+      "rec",
+      `STRATEGY · #${curBatter.jersey}`,
+      fetchBatterRec
+    );
   };
 
   // ── game situation: outs / runners / score / inning (coach-set) ──
@@ -905,6 +929,33 @@ export default function PitchCaller() {
         })),
     [game.pitches, game.currentBatterId]
   );
+
+  // current batter's line this game, for the situation-card summary
+  const curBatterSummary = useMemo(() => {
+    if (!curBatter) return null;
+    const mine = game.pitches.filter((p) => p.batterId === curBatter.id);
+    const logged = mine.filter((p) => p.outcome != null);
+    const res = game.abResults.filter((r) => r.batterId === curBatter.id);
+    let hits = 0;
+    let hard = 0;
+    let whiff = 0;
+    for (const p of logged) {
+      if (p.contact?.result === "hit") hits++;
+      if (p.contact?.quality === "hard") hard++;
+      if (swingOf(p.outcome) === "miss") whiff++;
+    }
+    return {
+      label: `#${curBatter.jersey} ${curBatter.hand}HH`,
+      pa: new Set(mine.map((p) => p.ab)).size,
+      seen: logged.length,
+      k: res.filter((r) => r.result === "K").length,
+      bb: res.filter((r) => r.result === "BB").length,
+      ip: res.filter((r) => r.result === "IP").length,
+      hits,
+      hard,
+      whiff,
+    };
+  }, [game.pitches, game.abResults, curBatter]);
   const setSituation = (patch: Partial<typeof situation>) =>
     setGame((g) => ({
       ...g,
@@ -1388,6 +1439,8 @@ export default function PitchCaller() {
             set={setSituation}
             newHalf={newHalf}
             spray={liveSpray}
+            batter={curBatterSummary}
+            onRecommend={curBatter ? fetchBatterRec : undefined}
           />
 
           {/* situational cue — flags the spot, never names the pitch */}
@@ -1698,7 +1751,7 @@ export default function PitchCaller() {
             <div className="mb-2.5 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
                 <Sparkles className="size-4" />
-                INSIGHT · {curPitcher?.name ?? "pitcher"}
+                {insightTitle}
               </div>
               <button
                 aria-label="Close"
@@ -1730,10 +1783,10 @@ export default function PitchCaller() {
 
             {!insightLoading && (
               <button
-                onClick={fetchInsight}
+                onClick={() => insightRunRef.current()}
                 className="mt-3 w-full rounded-lg border py-2 text-xs font-bold tracking-widest text-muted-foreground hover:bg-accent"
               >
-                ↻ RE-ANALYZE
+                ↻ RE-RUN
               </button>
             )}
             <div className="mt-2 text-center text-[10px] text-muted-foreground/75">

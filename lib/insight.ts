@@ -1,4 +1,10 @@
-import { ZONES, swingOf, type GameState, type Pitch } from "@/lib/types";
+import {
+  EMPTY_SITUATION,
+  ZONES,
+  swingOf,
+  type GameState,
+  type Pitch,
+} from "@/lib/types";
 import { pitchDef, STANDARD_PITCHES } from "@/lib/catalog";
 
 /**
@@ -104,3 +110,83 @@ Rules:
 - No filler, no restating the data back. Lead with the single most important read.
 - Use plain coach language. Reference pitch + location specifically.
 - Max ~180 words, short bullet-style lines.`;
+
+/**
+ * Per-batter, situation-aware brief for a single live at-bat. Feeds the
+ * "RECOMMEND" button: her results this game, the game situation, the
+ * pitcher's repertoire, and her full pitch-by-pitch history.
+ */
+export function buildBatterRecSummary(
+  game: GameState,
+  batterId: string
+): string {
+  const pitcher = game.pitchers.find((p) => p.id === game.pitcherId);
+  const defs = pitcher?.pitches.length ? pitcher.pitches : STANDARD_PITCHES;
+  const batter = game.batters.find((b) => b.id === batterId);
+  const s = game.situation ?? EMPTY_SITUATION;
+  const mine = game.pitches.filter(
+    (p) => p.batterId === batterId && p.outcome != null
+  );
+
+  const lines: string[] = [];
+  lines.push(
+    `Pitcher ${pitcher?.name ?? "current"} vs ${game.opponentName ?? "opponent"}.`
+  );
+  lines.push(`Her arsenal: ${defs.map((d) => d.name).join(", ")}.`);
+
+  const onBase =
+    [s.on1 && "1st", s.on2 && "2nd", s.on3 && "3rd"]
+      .filter(Boolean)
+      .join(" & ") || "empty";
+  lines.push(
+    `Situation: ${s.half} ${s.inning}, ${s.outs} out, runners ${onBase}, score us ${s.us}–${s.them} them. Current count ${game.count.b}-${game.count.s}.`
+  );
+
+  const res = game.abResults
+    .filter((r) => r.batterId === batterId)
+    .map((r) => r.result);
+  const pas = [...new Set(mine.map((p) => p.ab))].length;
+  lines.push(
+    `Batter #${batter?.jersey ?? "?"} (${batter?.hand ?? "?"}HH): ${mine.length} pitches over ${pas} plate appearances. Prior results: ${
+      res.length ? res.join(", ") : "none yet (first look)"
+    }.`
+  );
+
+  if (mine.length) {
+    const seq = mine
+      .map((p) => {
+        const sw = swingOf(p.outcome);
+        const tag =
+          sw === "miss"
+            ? "whiff"
+            : sw === "contact"
+              ? p.contact?.quality === "hard"
+                ? "HARD"
+                : p.contact?.result === "hit"
+                  ? "hit"
+                  : "contact"
+              : p.outcome;
+        return `${p.b}-${p.s} ${p.type}/${ZONES[p.zone]}(${tag})`;
+      })
+      .join(", ");
+    lines.push(`Pitch-by-pitch vs her this game: ${seq}.`);
+  } else {
+    lines.push("No pitches to her yet this game.");
+  }
+
+  return lines.join("\n");
+}
+
+export const REC_SYSTEM = `You are a fastpitch softball pitch-calling assistant advising a coach in real time for ONE at-bat. You are given the pitcher's repertoire, the live game situation (inning, outs, runners, score, count), the batter's results this game, and her full pitch-by-pitch history with swing outcomes and locations (relative to the batter; e.g. lo-aw = low-away; whiff = swing and miss, HARD = hard contact).
+
+Recommend a concise plan for THIS at-bat:
+- The single best pitch + location to go to, and why (her weakness, or the count).
+- How the situation should shape it (e.g., runner on 3rd with <2 outs: nothing in the dirt; first base open: expand/pitch around; 2 strikes: a chase pitch off her hot zone).
+- What to avoid — combos she has squared up.
+
+Rules:
+- Be brief: about 80 words, short lines a coach can read between pitches.
+- Lead with the single best call.
+- Name pitch type + location specifically.
+- Flag small samples honestly; with little data, lean on the situation and a standard approach.
+- Plain coach language, no filler.`;
