@@ -930,6 +930,18 @@ export default function PitchCaller() {
     [game.pitches, game.currentBatterId]
   );
 
+  // current pitcher's command trend (strike% by block) for the bottom graph
+  const callTrend = useMemo(
+    () =>
+      analyzePitcherStatus(
+        game.pitches.filter(
+          (p) => (p.pitcherId ?? null) === game.pitcherId && p.outcome != null
+        ),
+        game.abResults
+      ),
+    [game.pitches, game.pitcherId, game.abResults]
+  );
+
   // current batter's line this game, for the situation-card summary
   const curBatterSummary = useMemo(() => {
     if (!curBatter) return null;
@@ -1430,6 +1442,21 @@ export default function PitchCaller() {
             </div>
           )}
 
+          {/* THIS AT-BAT — color-coded squares (pitch type), count + spot inside */}
+          <div className="mb-2.5">
+            <div className="mb-1.5 flex items-center justify-between text-xs tracking-widest text-muted-foreground">
+              <span>THIS AT-BAT</span>
+              <button
+                onClick={undoLast}
+                disabled={!game.pitches.length}
+                className="press rounded-lg border px-2.5 py-1.5 text-[11px] font-bold tracking-wide hover:bg-accent disabled:opacity-30"
+              >
+                ⌫ UNDO LAST
+              </button>
+            </div>
+            <Strip pitches={curAbPitches} defs={defMap} />
+          </div>
+
           {/* two columns: situation + intel (left) · the call input (right) */}
           <div className="grid gap-3 sm:grid-cols-2 sm:items-start">
             <div className="flex flex-col gap-2.5">
@@ -1698,20 +1725,51 @@ export default function PitchCaller() {
             </div>
           </div>
 
-          {/* live AB strip */}
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-between text-xs tracking-widest text-muted-foreground">
-              <span>THIS AT-BAT</span>
-              <button
-                onClick={undoLast}
-                disabled={!game.pitches.length}
-                className="press rounded-lg border px-2.5 py-1.5 text-[11px] font-bold tracking-wide hover:bg-accent disabled:opacity-30"
-              >
-                ⌫ UNDO LAST
-              </button>
+          {/* command trend — strike% by 15-pitch block, hard-contact under */}
+          {callTrend.blocks.length > 1 && (
+            <div className="mt-4">
+              <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
+                COMMAND TREND · strike% by block
+              </div>
+              <div className="flex items-end gap-1.5" style={{ height: 60 }}>
+                {callTrend.blocks.map((b, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-1 flex-col items-center gap-1"
+                    title={`pitches ${b.label}: ${b.strikePct}% strikes, ${b.hard} hard`}
+                  >
+                    <div className="flex w-full flex-1 items-end">
+                      <div
+                        className="w-full rounded-t-md"
+                        style={{
+                          height: `${Math.max(b.strikePct, 3)}%`,
+                          background:
+                            b.strikePct >= 60
+                              ? "#36d67a"
+                              : b.strikePct >= 45
+                                ? "var(--primary)"
+                                : "#ff5a3c",
+                        }}
+                      />
+                    </div>
+                    <div className="tnum scoreboard font-mono text-[11px] text-muted-foreground">
+                      {b.strikePct}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1 flex gap-1.5">
+                {callTrend.blocks.map((b, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 text-center font-mono text-[11px] text-red-600/80 dark:text-red-400/80"
+                  >
+                    {b.hard > 0 ? `●${b.hard}` : ""}
+                  </div>
+                ))}
+              </div>
             </div>
-            <Strip pitches={curAbPitches} defs={defMap} />
-          </div>
+          )}
         </div>
         </section>
 
@@ -2015,28 +2073,37 @@ function Strip({ pitches, defs }: { pitches: Pitch[]; defs: PitchDef[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {pitches.map((p) => {
-        const c = pitchDef(defs, p.type).c;
+        const d = pitchDef(defs, p.type);
         const sw = swingOf(p.outcome);
         return (
           <div
             key={p.id}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 font-mono text-xs"
+            title={`${d.name} · ${ZONES[p.zone]} · ${p.b}-${p.s} · ${p.outcome ?? ""}`}
+            className="relative flex size-16 flex-col items-center justify-center rounded-lg"
+            style={{ background: d.c, color: "#0a0c10" }}
           >
-            <span className="text-muted-foreground">
+            {/* count + location inside; square color = pitch type */}
+            <span className="tnum font-mono text-lg font-extrabold leading-none">
               {p.b}-{p.s}
             </span>
-            <span className="font-bold" style={{ color: c }}>
+            <span className="mt-1 text-[10px] font-bold uppercase leading-none">
+              {ZONES[p.zone]}
+            </span>
+            <span className="absolute bottom-1 left-1 text-[9px] font-extrabold leading-none opacity-70">
               {p.type}
             </span>
-            <span className="text-card-foreground/80">{ZONES[p.zone]}</span>
             {p.outcome && (
               <span
-                className={cn(
-                  "text-[10px] font-bold",
-                  sw === "contact" && "text-red-600 dark:text-red-400",
-                  sw === "miss" && "text-blue-600 dark:text-blue-400",
-                  sw === "none" && "text-muted-foreground/75"
-                )}
+                className="absolute right-1 top-1 rounded px-1 text-[9px] font-extrabold leading-none"
+                style={{
+                  background: "rgba(10,12,16,0.82)",
+                  color:
+                    sw === "contact"
+                      ? "#ff9a9a"
+                      : sw === "miss"
+                        ? "#a9cdff"
+                        : "#e9e9e9",
+                }}
               >
                 {OUTCOME_LABEL[p.outcome] ?? p.outcome[0].toUpperCase()}
               </span>
