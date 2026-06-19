@@ -30,6 +30,8 @@ export interface ContactDetail {
   field?: FieldZone;
   /** what the ball in play became: an out, a hit, or reached on error */
   result?: "out" | "hit" | "reach";
+  /** on a reached-on-error, which fielder booted it (P,C,1B,2B,3B,SS,LF,CF,RF) */
+  errorBy?: string;
 }
 
 /** Classify an outcome by what the batter's bat did. */

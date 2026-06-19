@@ -133,6 +133,7 @@ export default function PitchCaller() {
   const [contactResult, setContactResult] = useState<
     "out" | "hit" | "reach" | null
   >(null);
+  const [contactErrorPos, setContactErrorPos] = useState<string | null>(null);
   // AI insight
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightText, setInsightText] = useState<string | null>(null);
@@ -711,6 +712,7 @@ export default function PitchCaller() {
       setContactQuality(null);
       setContactTraj(null);
       setContactResult(null);
+      setContactErrorPos(null);
       setContactFor("last");
     }
   };
@@ -728,7 +730,17 @@ export default function PitchCaller() {
         if (pitches[i].outcome === "inplay") {
           pitches[i] = {
             ...pitches[i],
-            contact: { quality, trajectory, x, y, result: result ?? undefined },
+            contact: {
+              quality,
+              trajectory,
+              x,
+              y,
+              result: result ?? undefined,
+              errorBy:
+                result === "reach" && contactErrorPos
+                  ? contactErrorPos
+                  : undefined,
+            },
           };
           break;
         }
@@ -759,8 +771,15 @@ export default function PitchCaller() {
     setContactQuality(null);
     setContactTraj(null);
     setContactResult(null);
+    setContactErrorPos(null);
     const resTag =
-      result === "out" ? " · OUT" : result === "hit" ? " · HIT" : result === "reach" ? " · REACH" : "";
+      result === "out"
+        ? " · OUT"
+        : result === "hit"
+          ? " · HIT"
+          : result === "reach"
+            ? ` · E${contactErrorPos ? "-" + contactErrorPos : ""}`
+            : "";
     flash(`${quality.toUpperCase()} ${TRAJ_LABEL[trajectory]}${resTag}`);
   };
 
@@ -1810,6 +1829,34 @@ export default function PitchCaller() {
                 </button>
               ))}
             </div>
+
+            {/* on a reach, which fielder booted it */}
+            {contactResult === "reach" && (
+              <div className="mb-3">
+                <div className="mb-1.5 text-[11px] font-bold tracking-widest text-muted-foreground">
+                  ERROR BY
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"] as const
+                  ).map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => setContactErrorPos(pos)}
+                      aria-pressed={contactErrorPos === pos}
+                      className={cn(
+                        "press rounded-2xl border-2 py-3 text-base font-extrabold tracking-wide",
+                        contactErrorPos === pos
+                          ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          : "border-border text-muted-foreground hover:bg-accent"
+                      )}
+                    >
+                      {pos}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div
               className={cn(
