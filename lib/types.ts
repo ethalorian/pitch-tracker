@@ -21,7 +21,7 @@ export const TRAJ_LABEL: Record<Trajectory, string> = {
 export type FieldZone = "lf" | "cf" | "rf" | "if-l" | "if-m" | "if-r";
 
 export interface ContactDetail {
-  quality: ContactQuality;
+  quality?: ContactQuality;
   trajectory?: Trajectory;
   /** spray chart coordinates, normalized 0–1 (x across, y down) */
   x?: number;

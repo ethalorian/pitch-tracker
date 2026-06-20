@@ -6,18 +6,12 @@ import type { ContactQuality, Trajectory } from "@/lib/types";
 export interface SprayMarker {
   x: number; // 0–1
   y: number; // 0–1
-  quality: ContactQuality;
+  quality?: ContactQuality;
   trajectory?: Trajectory;
 }
 
 const VB_W = 100;
 const VB_H = 78;
-
-const TRAJ_GLYPH: Record<string, string> = {
-  ground: "G",
-  line: "L",
-  fly: "F",
-};
 
 /**
  * Softball field, drawn as a fan from home plate. Tap anywhere to
@@ -91,47 +85,17 @@ export default function FieldChart({
       <rect x="32.9" y="54.9" width="2.2" height="2.2" fill="var(--muted-foreground)" transform="rotate(45 34 56)" />
       <rect x="48.9" y="70.9" width="2.2" height="2.2" fill="var(--muted-foreground)" transform="rotate(45 50 72)" />
 
-      {/* spray markers — hard = filled, weak = hollow (colorblind-safe) */}
-      {markers.map((m, i) => {
-        const cx = m.x * VB_W;
-        const cy = m.y * VB_H;
-        const hard = m.quality === "hard";
-        return (
-          <g key={i}>
-            {hard ? (
-              <circle
-                cx={cx}
-                cy={cy}
-                r="2.6"
-                fill="rgb(239, 68, 68)"
-                opacity="0.92"
-              />
-            ) : (
-              <circle
-                cx={cx}
-                cy={cy}
-                r="2.3"
-                fill="var(--card)"
-                stroke="rgb(245, 158, 11)"
-                strokeWidth="1"
-                opacity="0.95"
-              />
-            )}
-            {m.trajectory && (
-              <text
-                x={cx}
-                y={cy + 1.1}
-                textAnchor="middle"
-                fontSize="3"
-                fontWeight="bold"
-                fill={hard ? "#fff" : "rgb(245, 158, 11)"}
-              >
-                {TRAJ_GLYPH[m.trajectory]}
-              </text>
-            )}
-          </g>
-        );
-      })}
+      {/* spray markers — simple dots showing where balls were put in play */}
+      {markers.map((m, i) => (
+        <circle
+          key={i}
+          cx={m.x * VB_W}
+          cy={m.y * VB_H}
+          r="2.4"
+          fill="rgb(245, 158, 11)"
+          opacity="0.9"
+        />
+      ))}
       </g>
 
       {/* interactive bases at their true field positions (full opacity) */}

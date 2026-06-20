@@ -42,29 +42,23 @@ import {
   randomCall,
   type CallCardBuckets,
 } from "@/lib/callsheet";
-import { buildInsightSummary, buildBatterRecSummary } from "@/lib/insight";
+import { buildInsightSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import SequencingView from "@/components/sequencing-view";
 import LineupPanel from "@/components/lineup-panel";
 import PitcherStatusPanel from "@/components/pitcher-status";
 import { analyzePitcherStatus } from "@/lib/pitcher-status";
-import SituationBar from "@/components/situation-bar";
-import { basesMask, situationCue } from "@/lib/situation";
 import {
   EMPTY_GAME,
-  EMPTY_SITUATION,
-  TRAJ_LABEL,
   ZONES,
   swingOf,
   uid,
   type Batter,
-  type ContactQuality,
   type GameState,
   type Hand,
   type Outcome,
   type Pitch,
   type Pitcher,
-  type Trajectory,
 } from "@/lib/types";
 
 const STORE_KEY = "fastpitch-caller-v1";
@@ -126,14 +120,6 @@ export default function PitchCaller() {
     useState<CallCardBuckets>(DEFAULT_CARD_BUCKETS);
   // post-IN-PLAY contact panel: which pitch is awaiting detail
   const [contactFor, setContactFor] = useState<string | null>(null);
-  const [contactQuality, setContactQuality] = useState<ContactQuality | null>(
-    null
-  );
-  const [contactTraj, setContactTraj] = useState<Trajectory | null>(null);
-  const [contactResult, setContactResult] = useState<
-    "out" | "hit" | "reach" | null
-  >(null);
-  const [contactErrorPos, setContactErrorPos] = useState<string | null>(null);
   // AI insight
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightText, setInsightText] = useState<string | null>(null);
@@ -381,7 +367,6 @@ export default function PitchCaller() {
     game.batters.length > 1 && curIdxLive >= 0
       ? game.batters[(curIdxLive + 1) % game.batters.length]
       : null;
-  const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
 
   // live line for the current pitcher: workload + strike throwing
   const pitcherStats = useMemo(() => {
@@ -401,109 +386,6 @@ export default function PitchCaller() {
         : null,
     };
   }, [game.pitches, game.pitcherId]);
-
-  // batter intel, all night: contact (red) vs swing-and-miss (blue),
-  // per zone for the heat overlay and per type+zone combo for advice
-  const batterHeat = useMemo(() => {
-    const zones: Record<number, { contact: number; miss: number }> = {};
-    const combos: Record<
-      string,
-      { contact: number; miss: number; type: string; zone: number }
-    > = {};
-    if (!game.currentBatterId) return { zones, combos };
-    for (const p of game.pitches) {
-      if (p.batterId !== game.currentBatterId) continue;
-      const sw = swingOf(p.outcome);
-      if (sw !== "contact" && sw !== "miss") continue;
-      // hard contact counts double — squared-up matters more than a dribbler
-      const w = sw === "contact" && p.contact?.quality === "hard" ? 2 : 1;
-      zones[p.zone] = zones[p.zone] ?? { contact: 0, miss: 0 };
-      zones[p.zone][sw] += w;
-      const k = `${p.type}|${p.zone}`;
-      combos[k] = combos[k] ?? { contact: 0, miss: 0, type: p.type, zone: p.zone };
-      combos[k][sw] += w;
-    }
-    return { zones, combos };
-  }, [game.pitches, game.currentBatterId]);
-
-  // Decision SUPPORT, not prescription: surface where THIS hitter is cold
-  // (swings through) and hot (squares up) — but stay quiet until the read is
-  // real. We never tell the coach what to throw; we arm her own read.
-  const READ_MIN_SWINGS = 3; // total swing events before we say anything
-  const COMBO_MIN = 2; // a single combo needs this many to be "real"
-  const advice = useMemo(() => {
-    const list = Object.values(batterHeat.combos);
-    const totalSwings = list.reduce((n, c) => n + c.contact + c.miss, 0);
-
-    // per-pitch-type net signal vs this batter (summed across zones)
-    const byType: Record<
-      string,
-      { type: string; miss: number; contact: number }
-    > = {};
-    for (const c of list) {
-      const t = (byType[c.type] = byType[c.type] ?? {
-        type: c.type,
-        miss: 0,
-        contact: 0,
-      });
-      t.miss += c.miss;
-      t.contact += c.contact;
-    }
-
-    // cold = strongest swing-and-miss combo; hot = strongest hard-contact combo
-    let cold: (typeof list)[number] | null = null;
-    let hot: (typeof list)[number] | null = null;
-    for (const c of list) {
-      if (
-        c.miss >= COMBO_MIN &&
-        c.miss > c.contact &&
-        (!cold || c.miss - c.contact > cold.miss - cold.contact)
-      )
-        cold = c;
-      if (
-        c.contact >= COMBO_MIN &&
-        c.contact > c.miss &&
-        (!hot || c.contact > hot.contact)
-      )
-        hot = c;
-    }
-
-    return { byType, cold, hot, totalSwings, hasRead: totalSwings >= READ_MIN_SWINGS };
-  }, [batterHeat]);
-
-  /** Per-pitch glance signal for the arsenal buttons, only when real. */
-  const pitchSignal = (
-    k: string
-  ): { tone: "cold" | "hot"; n: number } | null => {
-    const t = advice.byType[k];
-    if (!t) return null;
-    if (t.miss + t.contact < COMBO_MIN) return null;
-    if (t.miss > t.contact) return { tone: "cold", n: t.miss };
-    if (t.contact > t.miss) return { tone: "hot", n: t.contact };
-    return null;
-  };
-
-  /** zone heat → background: red = contact, blue = whiffs, deeper = more */
-  const zoneBg = (zone: number): string | undefined => {
-    const h = batterHeat.zones[zone];
-    if (!h) return undefined;
-    const alpha = (n: number) => 0.18 + Math.min(n, 4) * 0.12;
-    if (h.contact >= h.miss && h.contact > 0)
-      return `rgba(239, 68, 68, ${alpha(h.contact)})`;
-    if (h.miss > 0) return `rgba(59, 130, 246, ${alpha(h.miss)})`;
-    return undefined;
-  };
-
-  /** zone read for the corner glyph: hard contact (●) vs whiffs (○). */
-  const zoneRead = (
-    zone: number
-  ): { tone: "cold" | "hot"; n: number } | null => {
-    const h = batterHeat.zones[zone];
-    if (!h) return null;
-    if (h.contact >= h.miss && h.contact > 0) return { tone: "hot", n: h.contact };
-    if (h.miss > 0) return { tone: "cold", n: h.miss };
-    return null;
-  };
 
   /* ── actions ── */
   // bring a hitter up: starts a fresh AB unless she's already up mid-count
@@ -656,8 +538,6 @@ export default function PitchCaller() {
         s: g.count.s,
         outcome: o,
         call: g.pending.call,
-        outs: (g.situation ?? EMPTY_SITUATION).outs,
-        bases: basesMask(g.situation),
         ts: Date.now(),
       };
       const pitches = [...g.pitches, pitch];
@@ -710,79 +590,25 @@ export default function PitchCaller() {
       flash(`${willEnd} · UP: #${nextBatter.jersey}`);
     }
     if (o === "inplay") {
-      // AB is over — dead time. Ask hard/weak, trajectory, out/hit, and where.
-      setContactQuality(null);
-      setContactTraj(null);
-      setContactResult(null);
-      setContactErrorPos(null);
+      // ball in play — just capture where it landed
       setContactFor("last");
     }
   };
 
-  const tagContact = (
-    quality: ContactQuality,
-    trajectory: Trajectory,
-    x: number,
-    y: number
-  ) => {
-    const result = contactResult;
+  // record where a ball in play landed (normalized field coords)
+  const tagContact = (x: number, y: number) => {
     setGame((g) => {
       const pitches = [...g.pitches];
       for (let i = pitches.length - 1; i >= 0; i--) {
         if (pitches[i].outcome === "inplay") {
-          pitches[i] = {
-            ...pitches[i],
-            contact: {
-              quality,
-              trajectory,
-              x,
-              y,
-              result: result ?? undefined,
-              errorBy:
-                result === "reach" && contactErrorPos
-                  ? contactErrorPos
-                  : undefined,
-            },
-          };
+          pitches[i] = { ...pitches[i], contact: { x, y } };
           break;
         }
       }
-      // an out auto-advances the count of outs; the 3rd out flips the half
-      let situation = g.situation ?? EMPTY_SITUATION;
-      if (result === "out") {
-        const nextOuts = situation.outs + 1;
-        situation =
-          nextOuts >= 3
-            ? {
-                ...situation,
-                outs: 0,
-                on1: false,
-                on2: false,
-                on3: false,
-                half: situation.half === "top" ? "bottom" : "top",
-                inning:
-                  situation.half === "top"
-                    ? situation.inning
-                    : situation.inning + 1,
-              }
-            : { ...situation, outs: nextOuts };
-      }
-      return { ...g, pitches, situation };
+      return { ...g, pitches };
     });
     setContactFor(null);
-    setContactQuality(null);
-    setContactTraj(null);
-    setContactResult(null);
-    setContactErrorPos(null);
-    const resTag =
-      result === "out"
-        ? " · OUT"
-        : result === "hit"
-          ? " · HIT"
-          : result === "reach"
-            ? ` · E${contactErrorPos ? "-" + contactErrorPos : ""}`
-            : "";
-    flash(`${quality.toUpperCase()} ${TRAJ_LABEL[trajectory]}${resTag}`);
+    flash("IN PLAY logged");
   };
 
   const startGame = (setup: GameSetup) => {
@@ -898,38 +724,6 @@ export default function PitchCaller() {
       fetchInsight
     );
 
-  const fetchBatterRec = () => {
-    if (!curBatter) return;
-    runInsight(
-      buildBatterRecSummary(game, curBatter.id),
-      "rec",
-      `STRATEGY · #${curBatter.jersey}`,
-      fetchBatterRec
-    );
-  };
-
-  // ── game situation: outs / runners / score / inning (coach-set) ──
-  const situation = game.situation ?? EMPTY_SITUATION;
-  const cue = situationCue(situation);
-  // the batter-up's balls in play → ghost spray on the situation field
-  const liveSpray = useMemo<SprayMarker[]>(
-    () =>
-      game.pitches
-        .filter(
-          (p) =>
-            p.batterId === game.currentBatterId &&
-            p.contact?.x != null &&
-            p.contact?.y != null
-        )
-        .map((p) => ({
-          x: p.contact!.x!,
-          y: p.contact!.y!,
-          quality: p.contact!.quality,
-          trajectory: p.contact!.trajectory,
-        })),
-    [game.pitches, game.currentBatterId]
-  );
-
   // current pitcher's command trend (strike% by block) for the bottom graph
   const callTrend = useMemo(
     () =>
@@ -941,55 +735,6 @@ export default function PitchCaller() {
       ),
     [game.pitches, game.pitcherId, game.abResults]
   );
-
-  // current batter's line this game, for the situation-card summary
-  const curBatterSummary = useMemo(() => {
-    if (!curBatter) return null;
-    const mine = game.pitches.filter((p) => p.batterId === curBatter.id);
-    const logged = mine.filter((p) => p.outcome != null);
-    const res = game.abResults.filter((r) => r.batterId === curBatter.id);
-    let hits = 0;
-    let hard = 0;
-    let whiff = 0;
-    for (const p of logged) {
-      if (p.contact?.result === "hit") hits++;
-      if (p.contact?.quality === "hard") hard++;
-      if (swingOf(p.outcome) === "miss") whiff++;
-    }
-    return {
-      label: `#${curBatter.jersey} ${curBatter.hand}HH`,
-      pa: new Set(mine.map((p) => p.ab)).size,
-      seen: logged.length,
-      k: res.filter((r) => r.result === "K").length,
-      bb: res.filter((r) => r.result === "BB").length,
-      ip: res.filter((r) => r.result === "IP").length,
-      hits,
-      hard,
-      whiff,
-    };
-  }, [game.pitches, game.abResults, curBatter]);
-  const setSituation = (patch: Partial<typeof situation>) =>
-    setGame((g) => ({
-      ...g,
-      situation: { ...(g.situation ?? EMPTY_SITUATION), ...patch },
-    }));
-  const newHalf = () =>
-    setGame((g) => {
-      const s = g.situation ?? EMPTY_SITUATION;
-      const toBottom = s.half === "top";
-      return {
-        ...g,
-        situation: {
-          ...s,
-          outs: 0,
-          on1: false,
-          on2: false,
-          on3: false,
-          half: toBottom ? "bottom" : "top",
-          inning: toBottom ? s.inning : s.inning + 1,
-        },
-      };
-    });
 
   // ── single-finger horizontal flick to move between views ──
   // One finger is far more reliable on iOS than multi-touch (which the OS
@@ -1393,20 +1138,37 @@ export default function PitchCaller() {
               </div>
             </div>
 
-            {/* relay code you read aloud — tap to redraw */}
+            {/* relay code — the tile lights up SOLID once pitch + location
+                are both set, so a complete call is unmistakable */}
             <button
               onClick={rerollCall}
               disabled={game.pending.type == null || game.pending.zone == null}
               aria-label="Relay code — tap to redraw"
               title="Tap to redraw a code for the same call"
-              className="press flex flex-col items-center justify-center rounded-2xl border bg-card px-2 py-2 hover:bg-accent disabled:hover:bg-card"
+              className={cn(
+                "press flex flex-col items-center justify-center rounded-2xl border-2 px-2 py-2 transition-colors",
+                game.pending.type != null && game.pending.zone != null
+                  ? game.pending.call
+                    ? "border-amber-500 bg-amber-500 text-black"
+                    : "border-red-500 bg-red-500/15"
+                  : "border-border bg-card"
+              )}
             >
-              <div className="text-[10px] tracking-widest text-muted-foreground">
+              <div
+                className={cn(
+                  "text-[10px] tracking-widest",
+                  game.pending.type != null &&
+                    game.pending.zone != null &&
+                    game.pending.call
+                    ? "text-black/70"
+                    : "text-muted-foreground"
+                )}
+              >
                 RELAY
               </div>
               {game.pending.type != null && game.pending.zone != null ? (
                 game.pending.call ? (
-                  <span className="animate-pop font-mono text-4xl font-extrabold leading-none tracking-[0.1em] text-amber-600 dark:text-amber-400">
+                  <span className="animate-pop font-mono text-4xl font-extrabold leading-none tracking-[0.1em] text-black">
                     {game.pending.call}
                   </span>
                 ) : (
@@ -1442,82 +1204,8 @@ export default function PitchCaller() {
             </div>
           )}
 
-          {/* THIS AT-BAT — color-coded squares (pitch type), count + spot inside */}
-          <div className="mb-2.5">
-            <div className="mb-1.5 flex items-center justify-between text-xs tracking-widest text-muted-foreground">
-              <span>THIS AT-BAT</span>
-              <button
-                onClick={undoLast}
-                disabled={!game.pitches.length}
-                className="press rounded-lg border px-2.5 py-1.5 text-[11px] font-bold tracking-wide hover:bg-accent disabled:opacity-30"
-              >
-                ⌫ UNDO LAST
-              </button>
-            </div>
-            <Strip pitches={curAbPitches} defs={defMap} />
-          </div>
-
-          {/* two columns: situation + intel (left) · the call input (right) */}
-          <div className="grid gap-3 sm:grid-cols-2 sm:items-start">
-            <div className="flex flex-col gap-2.5">
-          {/* game situation — prominent: outs / runners / score / inning */}
-          <SituationBar
-            s={situation}
-            set={setSituation}
-            newHalf={newHalf}
-            spray={liveSpray}
-            batter={curBatterSummary}
-            onRecommend={curBatter ? fetchBatterRec : undefined}
-          />
-
-          {/* situational cue — flags the spot, never names the pitch */}
-          {cue && (
-            <div
-              className={cn(
-                "animate-pop mb-2.5 flex items-center gap-2 rounded-2xl border-2 px-3.5 py-2.5 text-sm font-bold leading-snug",
-                cue.tone === "warn"
-                  ? "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400"
-                  : cue.tone === "go"
-                    ? "border-green-500/60 bg-green-500/10 text-green-600 dark:text-green-400"
-                    : "border-primary/50 bg-primary/10 text-foreground"
-              )}
-            >
-              {cue.text}
-            </div>
-          )}
-
-          {/* workload: one quiet line, not three competing tiles */}
-          <div className="mb-2.5 flex items-center justify-center gap-3 text-[11px] font-medium tracking-wide text-muted-foreground">
-            <span className="tnum">
-              <span className="font-bold text-foreground">
-                {pitcherStats.total}
-              </span>{" "}
-              P
-            </span>
-            <span aria-hidden className="opacity-30">
-              ·
-            </span>
-            <span className="tnum">
-              <span className="font-bold text-foreground">
-                {pitcherStats.strikePct != null
-                  ? `${pitcherStats.strikePct}%`
-                  : "—"}
-              </span>{" "}
-              STR
-            </span>
-            <span aria-hidden className="opacity-30">
-              ·
-            </span>
-            <span className="tnum">
-              <span className="font-bold text-foreground">
-                {pitcherStats.fpsPct != null ? `${pitcherStats.fpsPct}%` : "—"}
-              </span>{" "}
-              1ST-K
-            </span>
-          </div>
-
           {game.abOver && (
-            <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-amber-500 bg-card px-3 py-2">
+            <div className="mb-2.5 flex items-center gap-2 rounded-2xl border border-amber-500 bg-card px-3 py-2">
               <div className="flex-1 text-sm font-bold tracking-wide text-amber-600 dark:text-amber-400">
                 AT-BAT ENDED
               </div>
@@ -1538,31 +1226,36 @@ export default function PitchCaller() {
             </div>
           )}
 
-          {/* her read: factual signal, not a command — and silent until real.
-              COLD = she swings through it (○ whiffs); HOT = she squares it
-              up (● hard contact). You make the call. */}
-          {curBatter && advice.hasRead && (advice.cold || advice.hot) && (
-            <div className="animate-pop mb-2.5 flex h-9 items-center gap-3 overflow-x-auto whitespace-nowrap rounded-xl border bg-card px-3 font-mono text-xs">
-              <span className="shrink-0 text-[10px] tracking-widest text-muted-foreground">
-                READ
-              </span>
-              {advice.cold && (
-                <span className="font-bold text-blue-600 dark:text-blue-400">
-                  COLD {advice.cold.type}·
-                  {ZONES[advice.cold.zone].toUpperCase()} ○{advice.cold.miss}
-                </span>
-              )}
-              {advice.hot && (
-                <span className="font-bold text-red-600 dark:text-red-400">
-                  HOT {advice.hot.type}·
-                  {ZONES[advice.hot.zone].toUpperCase()} ●{advice.hot.contact}
-                </span>
-              )}
-            </div>
-          )}
-            </div>
+          {/* workload */}
+          <div className="mb-3 flex items-center justify-center gap-3 text-[11px] font-medium tracking-wide text-muted-foreground">
+            <span className="tnum">
+              <span className="font-bold text-foreground">
+                {pitcherStats.total}
+              </span>{" "}
+              P
+            </span>
+            <span aria-hidden className="opacity-40">
+              ·
+            </span>
+            <span className="tnum">
+              <span className="font-bold text-foreground">
+                {pitcherStats.strikePct != null
+                  ? `${pitcherStats.strikePct}%`
+                  : "—"}
+              </span>{" "}
+              STR
+            </span>
+            <span aria-hidden className="opacity-40">
+              ·
+            </span>
+            <span className="tnum">
+              <span className="font-bold text-foreground">
+                {pitcherStats.fpsPct != null ? `${pitcherStats.fpsPct}%` : "—"}
+              </span>{" "}
+              1ST-K
+            </span>
+          </div>
 
-            <div className="flex flex-col">
           {/* pitch types — adapts to the current pitcher's repertoire */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
             <span>① PITCH</span>
@@ -1581,20 +1274,13 @@ export default function PitchCaller() {
           >
             {repertoire.map((p) => {
               const on = game.pending.type === p.k;
-              const sig = on ? null : pitchSignal(p.k);
               return (
                 <button
                   key={p.k}
                   onClick={() => pickType(p.k)}
                   aria-pressed={on}
-                  aria-label={
-                    sig
-                      ? `${p.name}, batter ${
-                          sig.tone === "cold" ? "whiffs" : "hits hard"
-                        } ${sig.n}`
-                      : p.name
-                  }
-                  className="press relative rounded-2xl border-2 py-5 text-2xl font-extrabold transition-all"
+                  aria-label={p.name}
+                  className="press rounded-2xl border-2 py-5 text-2xl font-extrabold transition-all"
                   style={
                     on
                       ? { borderColor: p.c, background: p.c, color: "#0a0c10" }
@@ -1602,19 +1288,6 @@ export default function PitchCaller() {
                   }
                 >
                   {p.k}
-                  {sig && (
-                    <span
-                      className={cn(
-                        "tnum absolute right-1 top-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
-                        sig.tone === "cold"
-                          ? "bg-blue-500/20 text-blue-600 dark:text-blue-300"
-                          : "bg-red-500/20 text-red-600 dark:text-red-300"
-                      )}
-                    >
-                      {sig.tone === "cold" ? "○" : "●"}
-                      {sig.n}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -1623,54 +1296,25 @@ export default function PitchCaller() {
           {/* location — four quadrants, no middle: you don't call meatballs */}
           <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
             <span>② LOCATION</span>
-            {curBatter && advice.hasRead ? (
-              <span className="flex items-center gap-2 opacity-80">
-                <span className="text-blue-600 dark:text-blue-400">○ whiff</span>
-                <span className="text-red-600 dark:text-red-400">● hard</span>
-              </span>
-            ) : (
-              <span className="opacity-60">relative to batter</span>
-            )}
+            <span className="opacity-60">relative to batter</span>
           </div>
           <div className="mb-3.5 grid grid-cols-2 gap-1.5">
             {QUADRANTS.map((i) => {
               const on = game.pending.zone === i;
-              const bg = on ? undefined : zoneBg(i);
-              const zr = on ? null : zoneRead(i);
               return (
                 <button
                   key={i}
                   onClick={() => pickZone(i)}
                   aria-pressed={on}
-                  aria-label={
-                    zr
-                      ? `${ZONES[i]}, batter ${
-                          zr.tone === "cold" ? "whiffs" : "hits hard"
-                        } ${zr.n}`
-                      : ZONES[i]
-                  }
+                  aria-label={ZONES[i]}
                   className={cn(
-                    "press relative rounded-2xl border-2 py-9 text-base font-bold uppercase tracking-wide",
+                    "press rounded-2xl border-2 py-9 text-base font-bold uppercase tracking-wide",
                     on
                       ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border bg-card text-foreground/80 hover:brightness-110"
                   )}
-                  style={bg ? { background: bg } : undefined}
                 >
                   {ZONES[i]}
-                  {zr && (
-                    <span
-                      className={cn(
-                        "tnum absolute right-1.5 top-1.5 text-[11px] font-bold leading-none",
-                        zr.tone === "cold"
-                          ? "text-blue-600 dark:text-blue-300"
-                          : "text-red-600 dark:text-red-300"
-                      )}
-                    >
-                      {zr.tone === "cold" ? "○" : "●"}
-                      {zr.n}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -1720,8 +1364,6 @@ export default function PitchCaller() {
                   onTap={() => outcome(o)}
                 />
               ))}
-            </div>
-          </div>
             </div>
           </div>
 
@@ -1850,143 +1492,27 @@ export default function PitchCaller() {
         </div>
       )}
 
-      {/* post-IN-PLAY contact detail: hard/weak + trajectory, then tap the field */}
+      {/* ball in play — just tap where it landed */}
       {contactFor && (
         <div className="animate-overlay-in fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm">
           <div className="animate-sheet-in my-auto w-full max-w-[640px] rounded-2xl border bg-card p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
-                BALL IN PLAY — HOW &amp; WHERE?
+                WHERE DID IT GO?
               </div>
               <button
-                onClick={() => {
-                  setContactFor(null);
-                  setContactQuality(null);
-                  setContactTraj(null);
-                }}
+                onClick={() => setContactFor(null)}
                 className="rounded-lg border px-2 py-1 text-[11px] tracking-widest text-muted-foreground hover:bg-accent"
               >
                 SKIP
               </button>
             </div>
 
-            <div className="mb-2 grid grid-cols-2 gap-2">
-              {(["hard", "weak"] as const).map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setContactQuality(q)}
-                  aria-pressed={contactQuality === q}
-                  className={cn(
-                    "press rounded-2xl border-2 py-4 text-lg font-extrabold tracking-wide",
-                    contactQuality === q
-                      ? q === "hard"
-                        ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
-                        : "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      : "border-border text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  {q.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            <div className="mb-3 grid grid-cols-3 gap-2">
-              {(["ground", "line", "fly"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setContactTraj(t)}
-                  aria-pressed={contactTraj === t}
-                  className={cn(
-                    "press rounded-2xl border-2 py-4 text-base font-bold tracking-wide",
-                    contactTraj === t
-                      ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      : "border-border text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  {TRAJ_LABEL[t]}
-                </button>
-              ))}
-            </div>
-
-            {/* out / hit / reached — an OUT auto-advances the outs count */}
-            <div className="mb-3 grid grid-cols-3 gap-2">
-              {(
-                [
-                  ["out", "OUT", "green"],
-                  ["hit", "HIT", "red"],
-                  ["reach", "REACH", "amber"],
-                ] as const
-              ).map(([r, label, tone]) => (
-                <button
-                  key={r}
-                  onClick={() => setContactResult(r)}
-                  aria-pressed={contactResult === r}
-                  className={cn(
-                    "press rounded-2xl border-2 py-4 text-base font-extrabold tracking-wide",
-                    contactResult === r
-                      ? tone === "green"
-                        ? "border-green-500 bg-green-500/15 text-green-600 dark:text-green-400"
-                        : tone === "red"
-                          ? "border-red-500 bg-red-500/15 text-red-600 dark:text-red-400"
-                          : "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      : "border-border text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* on a reach, which fielder booted it */}
-            {contactResult === "reach" && (
-              <div className="mb-3">
-                <div className="mb-1.5 text-[11px] font-bold tracking-widest text-muted-foreground">
-                  ERROR BY
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {(
-                    ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"] as const
-                  ).map((pos) => (
-                    <button
-                      key={pos}
-                      onClick={() => setContactErrorPos(pos)}
-                      aria-pressed={contactErrorPos === pos}
-                      className={cn(
-                        "press rounded-2xl border-2 py-3 text-base font-extrabold tracking-wide",
-                        contactErrorPos === pos
-                          ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                          : "border-border text-muted-foreground hover:bg-accent"
-                      )}
-                    >
-                      {pos}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div
-              className={cn(
-                "mx-auto max-w-[520px] rounded-2xl border-2",
-                contactQuality && contactTraj && contactResult
-                  ? "border-amber-500"
-                  : "pointer-events-none opacity-40"
-              )}
-            >
-              <FieldChart
-                className="w-full"
-                onTap={(x, y) =>
-                  contactQuality &&
-                  contactTraj &&
-                  contactResult &&
-                  tagContact(contactQuality, contactTraj, x, y)
-                }
-              />
+            <div className="mx-auto max-w-[560px] rounded-2xl border-2 border-amber-500">
+              <FieldChart className="w-full" onTap={(x, y) => tagContact(x, y)} />
             </div>
             <div className="mt-3 text-center text-sm text-muted-foreground">
-              {contactQuality && contactTraj && contactResult
-                ? "tap the field where it went"
-                : "pick quality, type, and out/hit — then tap the field"}
+              tap the field where the ball was hit
             </div>
           </div>
         </div>
@@ -2037,9 +1563,11 @@ function ResultButton({
       onClick={onTap}
       disabled={disabled}
       className={cn(
-        "press rounded-2xl border bg-card py-6 text-sm font-extrabold tracking-wide hover:bg-accent disabled:opacity-40",
+        "press rounded-2xl border-2 bg-card py-6 text-sm font-extrabold tracking-wide hover:bg-accent disabled:opacity-40",
         RESULT_TONE[tone] ?? "text-card-foreground",
-        armed && "animate-pulse-glow"
+        armed
+          ? "border-amber-500 animate-pulse-glow"
+          : "border-border opacity-70"
       )}
     >
       {label}
