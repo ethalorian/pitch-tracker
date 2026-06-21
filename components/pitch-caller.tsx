@@ -64,6 +64,16 @@ const ck = (b: number, s: number) => `${b}-${s}`;
 /** Swipe order for the three views (single-finger horizontal flick). */
 const VIEW_ORDER = ["call", "game"] as const;
 
+/** short result tag shown on each at-bat square */
+const CALL_RESULT: Record<string, string> = {
+  ball: "B",
+  called: "CS", // called strike
+  strike: "S",
+  miss: "W", // swing & miss
+  foul: "F",
+  inplay: "IP",
+};
+
 /**
  * Call targets: the four corners of the legacy 3×3 zone grid
  * (hi-in, hi-away, lo-in, lo-away). Indexes are unchanged so
@@ -960,16 +970,19 @@ export default function PitchCaller() {
         <section className={cn(tab !== "call" && "hidden")}>
         <div className="px-3.5 py-2">
           {/* this at-bat — one square per call (colored by pitch), with the
-              count it was thrown at; clears when the count resets */}
+              count it was thrown at + what happened; clears on count reset */}
           {curAbPitches.length > 0 && (
             <div className="mb-2.5 flex flex-wrap gap-1.5">
               {curAbPitches.map((p) => {
                 const c = defMap.find((d) => d.k === p.type)?.c ?? "#8b8b8b";
+                const res = p.outcome ? CALL_RESULT[p.outcome] : null;
                 return (
                   <div
                     key={p.id}
-                    title={`${p.type} ${ZONES[p.zone]} · ${p.b}-${p.s}`}
-                    className="flex size-12 flex-col items-center justify-center rounded-lg"
+                    title={`${p.type} ${ZONES[p.zone]} · ${p.b}-${p.s}${
+                      p.outcome ? " · " + p.outcome : ""
+                    }`}
+                    className="relative flex size-14 flex-col items-center justify-center rounded-lg"
                     style={{ background: c, color: "#0a0c10" }}
                   >
                     <span className="tnum font-mono text-base font-extrabold leading-none">
@@ -978,6 +991,14 @@ export default function PitchCaller() {
                     <span className="mt-0.5 text-[9px] font-bold uppercase leading-none">
                       {ZONES[p.zone]}
                     </span>
+                    {res && (
+                      <span
+                        className="absolute -right-1 -top-1 rounded px-1 py-0.5 text-[9px] font-extrabold leading-none text-white"
+                        style={{ background: "rgba(10,12,16,0.9)" }}
+                      >
+                        {res}
+                      </span>
+                    )}
                   </div>
                 );
               })}
