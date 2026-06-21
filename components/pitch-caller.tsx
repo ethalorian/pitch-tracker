@@ -352,6 +352,10 @@ export default function PitchCaller() {
     const defs = buildDefMap(game.pitchers);
     return defs.length ? defs : STANDARD_PITCHES;
   }, [game.pitchers]);
+  // pitches in the current at-bat — shown as squares, cleared when the
+  // count resets on a terminal result
+  const curAbPitches = game.pitches.filter((p) => p.ab === game.currentAb);
+
   // live line for the current pitcher: workload + strike throwing
   const pitcherStats = useMemo(() => {
     const mine = game.pitches.filter(
@@ -955,6 +959,31 @@ export default function PitchCaller() {
       <div className="px-1 pt-1 md:px-2">
         <section className={cn(tab !== "call" && "hidden")}>
         <div className="px-3.5 py-2">
+          {/* this at-bat — one square per call (colored by pitch), with the
+              count it was thrown at; clears when the count resets */}
+          {curAbPitches.length > 0 && (
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
+              {curAbPitches.map((p) => {
+                const c = defMap.find((d) => d.k === p.type)?.c ?? "#8b8b8b";
+                return (
+                  <div
+                    key={p.id}
+                    title={`${p.type} ${ZONES[p.zone]} · ${p.b}-${p.s}`}
+                    className="flex size-12 flex-col items-center justify-center rounded-lg"
+                    style={{ background: c, color: "#0a0c10" }}
+                  >
+                    <span className="tnum font-mono text-base font-extrabold leading-none">
+                      {p.b}-{p.s}
+                    </span>
+                    <span className="mt-0.5 text-[9px] font-bold uppercase leading-none">
+                      {ZONES[p.zone]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Row 1: count · relay */}
           <div className="mb-2.5 grid grid-cols-2 gap-2">
             <div className="flex flex-col items-center justify-center rounded-2xl border bg-card px-2 py-2">
