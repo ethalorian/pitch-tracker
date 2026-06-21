@@ -160,13 +160,17 @@
   }
 }
 
+/* "ready for the result" — a bold radar-ping ring so it's obvious in real
+   time that the next action is to tag the outcome */
 @keyframes pulse-glow {
-  0%,
+  0% {
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgb(245 158 11 / 0);
+  }
   100% {
     box-shadow: 0 0 0 0 rgb(245 158 11 / 0);
-  }
-  50% {
-    box-shadow: 0 0 0 3px rgb(245 158 11 / 0.35);
   }
 }
 

@@ -113,6 +113,7 @@ export default function PitchCaller() {
     useState<CallCardBuckets>(DEFAULT_CARD_BUCKETS);
   // post-IN-PLAY contact panel: which pitch is awaiting detail
   const [contactFor, setContactFor] = useState<string | null>(null);
+  const [contactTraj, setContactTraj] = useState<"ground" | "fly" | null>(null);
   // AI insight
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightText, setInsightText] = useState<string | null>(null);
@@ -472,25 +473,31 @@ export default function PitchCaller() {
       };
     });
     if (o === "inplay") {
-      // ball in play — just capture where it landed
+      // ball in play — capture ground/fly + where it landed
+      setContactTraj(null);
       setContactFor("last");
     }
   };
 
-  // record where a ball in play landed (normalized field coords)
+  // record a ball in play: ground/fly + where it landed (normalized coords)
   const tagContact = (x: number, y: number) => {
+    const trajectory = contactTraj;
     setGame((g) => {
       const pitches = [...g.pitches];
       for (let i = pitches.length - 1; i >= 0; i--) {
         if (pitches[i].outcome === "inplay") {
-          pitches[i] = { ...pitches[i], contact: { x, y } };
+          pitches[i] = {
+            ...pitches[i],
+            contact: { x, y, trajectory: trajectory ?? undefined },
+          };
           break;
         }
       }
       return { ...g, pitches };
     });
     setContactFor(null);
-    flash("IN PLAY logged");
+    setContactTraj(null);
+    flash(trajectory === "ground" ? "GROUND BALL" : "FLY BALL");
   };
 
   const startGame = (setup: GameSetup) => {
@@ -1099,6 +1106,11 @@ export default function PitchCaller() {
           <div className="mb-3.5 grid grid-cols-2 gap-1.5">
             {QUADRANTS.map((i) => {
               const on = game.pending.zone === i;
+              // when a pitch is also selected, the chosen location takes on
+              // the pitch's color — a clear cue the two are locked together
+              const pc = game.pending.type
+                ? repertoire.find((p) => p.k === game.pending.type)?.c
+                : undefined;
               return (
                 <button
                   key={i}
@@ -1108,9 +1120,16 @@ export default function PitchCaller() {
                   className={cn(
                     "press rounded-2xl border-2 py-9 text-base font-bold uppercase tracking-wide",
                     on
-                      ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      ? pc
+                        ? ""
+                        : "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
                       : "border-border bg-card text-foreground/80 hover:brightness-110"
                   )}
+                  style={
+                    on && pc
+                      ? { borderColor: pc, background: pc, color: "#0a0c10" }
+                      : undefined
+                  }
                 >
                   {ZONES[i]}
                 </button>
@@ -1119,9 +1138,26 @@ export default function PitchCaller() {
           </div>
 
           {/* outcome — grouped by what the bat did: no swing | swing */}
-          <div className="mx-0.5 mb-1.5 mt-0.5 flex justify-between text-xs tracking-widest text-muted-foreground">
-            <span>③ RESULT</span>
-            <span className="opacity-60">no swing · swing</span>
+          <div className="mx-0.5 mb-1.5 mt-0.5 flex items-center justify-between text-xs tracking-widest">
+            <span
+              className={cn(
+                "font-bold",
+                game.pending.type != null && game.pending.zone != null
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-muted-foreground"
+              )}
+            >
+              ③ RESULT
+            </span>
+            {game.pending.type != null && game.pending.zone != null ? (
+              <span className="animate-pulse font-extrabold text-amber-600 dark:text-amber-400">
+                ↓ TAP THE RESULT
+              </span>
+            ) : (
+              <span className="text-muted-foreground opacity-60">
+                no swing · swing
+              </span>
+            )}
           </div>
           <div className="flex gap-3">
             <div className="grid flex-[2] grid-cols-2 gap-1.5">
@@ -1285,13 +1321,13 @@ export default function PitchCaller() {
         </div>
       )}
 
-      {/* ball in play — just tap where it landed */}
+      {/* ball in play — ground/fly, then tap where it landed */}
       {contactFor && (
         <div className="animate-overlay-in fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm">
           <div className="animate-sheet-in my-auto w-full max-w-[640px] rounded-2xl border bg-card p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-bold tracking-widest text-amber-600 dark:text-amber-400">
-                WHERE DID IT GO?
+                BALL IN PLAY
               </div>
               <button
                 onClick={() => setContactFor(null)}
@@ -1301,11 +1337,44 @@ export default function PitchCaller() {
               </button>
             </div>
 
-            <div className="mx-auto max-w-[560px] rounded-2xl border-2 border-amber-500">
+            {/* ground ball or fly ball */}
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["ground", "GROUND BALL"],
+                  ["fly", "FLY BALL"],
+                ] as const
+              ).map(([t, label]) => (
+                <button
+                  key={t}
+                  onClick={() => setContactTraj(t)}
+                  aria-pressed={contactTraj === t}
+                  className={cn(
+                    "press rounded-2xl border-2 py-5 text-base font-extrabold tracking-wide",
+                    contactTraj === t
+                      ? "border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              className={cn(
+                "mx-auto max-w-[560px] rounded-2xl border-2",
+                contactTraj
+                  ? "border-amber-500"
+                  : "pointer-events-none opacity-40"
+              )}
+            >
               <FieldChart className="w-full" onTap={(x, y) => tagContact(x, y)} />
             </div>
             <div className="mt-3 text-center text-sm text-muted-foreground">
-              tap the field where the ball was hit
+              {contactTraj
+                ? "tap the field where the ball was hit"
+                : "pick ground or fly, then tap the field"}
             </div>
           </div>
         </div>
