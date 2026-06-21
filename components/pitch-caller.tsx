@@ -11,7 +11,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
-  ChevronDown,
   History,
   LogOut,
   RefreshCw,
@@ -36,7 +35,7 @@ import {
   syncTeamBatters,
 } from "@/lib/supabase/sync";
 import { getSupabase } from "@/lib/supabase/client";
-import { STANDARD_PITCHES, pitchDef, type PitchDef } from "@/lib/catalog";
+import { STANDARD_PITCHES, type PitchDef } from "@/lib/catalog";
 import {
   DEFAULT_CARD_BUCKETS,
   randomCall,
@@ -45,17 +44,13 @@ import {
 import { buildInsightSummary } from "@/lib/insight";
 import FieldChart, { type SprayMarker } from "@/components/field-chart";
 import SequencingView from "@/components/sequencing-view";
-import LineupPanel from "@/components/lineup-panel";
 import PitcherStatusPanel from "@/components/pitcher-status";
 import { analyzePitcherStatus } from "@/lib/pitcher-status";
 import {
   EMPTY_GAME,
   ZONES,
-  swingOf,
   uid,
-  type Batter,
   type GameState,
-  type Hand,
   type Outcome,
   type Pitch,
   type Pitcher,
@@ -67,7 +62,7 @@ const TS_KEY = "fastpitch-caller-ts";
 const ck = (b: number, s: number) => `${b}-${s}`;
 
 /** Swipe order for the three views (single-finger horizontal flick). */
-const VIEW_ORDER = ["call", "batter", "game"] as const;
+const VIEW_ORDER = ["call", "game"] as const;
 
 /**
  * Call targets: the four corners of the legacy 3×3 zone grid
@@ -106,11 +101,9 @@ export default function PitchCaller() {
   const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [game, setGame] = useState<GameState>(loadGame);
-  const [tab, setTab] = useState<"call" | "batter" | "game">("call");
-  const [viewBatter, setViewBatter] = useState<string | null>(null);
+  const [tab, setTab] = useState<"call" | "game">("call");
   const [toast, setToast] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
-  const [showLineup, setShowLineup] = useState(false); // heads-up: lineup tucked away
   const [online, setOnline] = useState(true); // trust indicator; data always saved locally
   const [roster, setRoster] = useState<Pitcher[]>([]); // live staff for mid-game changes
   const [pickingPitcher, setPickingPitcher] = useState(false);
@@ -358,16 +351,6 @@ export default function PitchCaller() {
     const defs = buildDefMap(game.pitchers);
     return defs.length ? defs : STANDARD_PITCHES;
   }, [game.pitchers]);
-  const curBatter =
-    game.batters.find((b) => b.id === game.currentBatterId) ?? null;
-  const curIdxLive = game.batters.findIndex(
-    (b) => b.id === game.currentBatterId
-  );
-  const onDeckBatter =
-    game.batters.length > 1 && curIdxLive >= 0
-      ? game.batters[(curIdxLive + 1) % game.batters.length]
-      : null;
-
   // live line for the current pitcher: workload + strike throwing
   const pitcherStats = useMemo(() => {
     const mine = game.pitches.filter(
@@ -388,78 +371,10 @@ export default function PitchCaller() {
   }, [game.pitches, game.pitcherId]);
 
   /* ── actions ── */
-  // bring a hitter up: starts a fresh AB unless she's already up mid-count
-  const bringUp = (batterId: string) =>
-    setGame((g) => {
-      if (batterId === g.currentBatterId && !g.abOver) return g;
-      return {
-        ...g,
-        currentBatterId: batterId,
-        currentAb: g.abCounter + 1,
-        abCounter: g.abCounter + 1,
-        count: { b: 0, s: 0 },
-        pending: {},
-        abOver: false,
-      };
-    });
-
-  const addLineupBatter = (jersey: string, hand: Hand, name: string) => {
-    const j = jersey.trim();
-    if (!j) return;
-    setGame((g) => {
-      if (g.batters.some((b) => b.jersey === j)) return g; // no dup jersey
-      const nb = { id: uid(), jersey: j, hand, name: name.trim() || undefined };
-      const batters = [...g.batters, nb];
-      // first hitter added becomes the one at bat
-      if (!g.currentBatterId) {
-        return {
-          ...g,
-          batters,
-          currentBatterId: nb.id,
-          currentAb: g.abCounter + 1,
-          abCounter: g.abCounter + 1,
-          count: { b: 0, s: 0 },
-          abOver: false,
-        };
-      }
-      return { ...g, batters };
-    });
-  };
-
-  const removeBatter = (id: string) =>
-    setGame((g) => ({
-      ...g,
-      batters: g.batters.filter((b) => b.id !== id),
-      currentBatterId: g.currentBatterId === id ? null : g.currentBatterId,
-    }));
-
-  const moveBatter = (id: string, dir: -1 | 1) =>
-    setGame((g) => {
-      const i = g.batters.findIndex((b) => b.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= g.batters.length) return g;
-      const batters = [...g.batters];
-      [batters[i], batters[j]] = [batters[j], batters[i]];
-      return { ...g, batters };
-    });
-
-  const editBatter = (id: string, patch: Partial<Batter>) =>
-    setGame((g) => ({
-      ...g,
-      batters: g.batters.map((b) => (b.id === id ? { ...b, ...patch } : b)),
-    }));
-
-  const toggleAuto = () =>
-    setGame((g) => ({ ...g, autoAdvance: !g.autoAdvance }));
-
   // the call stays selected (highlighted) until the result tags it;
   // pitch + outcome commit together on the result tap. When both type
   // and zone are set, a random wristband code is drawn to relay.
   const pickType = (t: string) => {
-    if (!game.currentBatterId) {
-      flash("Pick a batter first");
-      return;
-    }
     setGame((g) => {
       const type = g.pending.type === t ? undefined : t;
       const call =
@@ -471,10 +386,6 @@ export default function PitchCaller() {
   };
 
   const pickZone = (z: number) => {
-    if (!game.currentBatterId) {
-      flash("Pick a batter first");
-      return;
-    }
     setGame((g) => {
       const zone = g.pending.zone === z ? undefined : z;
       const call =
@@ -504,32 +415,11 @@ export default function PitchCaller() {
       flash("Select pitch + location first");
       return;
     }
-    // auto-advance: once the order has been around (2nd+ AB for this
-    // batter), the lineup is known — next hitter comes up automatically
-    const willEnd: "BB" | "K" | "IP" | null =
-      o === "inplay"
-        ? "IP"
-        : o === "ball" && game.count.b >= 3
-          ? "BB"
-          : (o === "called" || o === "miss" || o === "strike") &&
-              game.count.s >= 2
-            ? "K"
-            : null;
-    const curIdx = game.batters.findIndex(
-      (b) => b.id === game.currentBatterId
-    );
-    const nextBatter =
-      game.batters.length > 1 && curIdx >= 0
-        ? game.batters[(curIdx + 1) % game.batters.length]
-        : null;
-    // follow the explicit batting order; the coach can switch AUTO off
-    const autoAdvance = willEnd != null && game.autoAdvance && nextBatter != null;
     setGame((g) => {
-      if (!g.currentBatterId || g.pending.type == null || g.pending.zone == null)
-        return g;
+      if (g.pending.type == null || g.pending.zone == null) return g;
       const pitch: Pitch = {
         id: uid(),
-        batterId: g.currentBatterId,
+        batterId: g.currentBatterId ?? "anon",
         pitcherId: g.pitcherId,
         ab: g.currentAb,
         type: g.pending.type,
@@ -554,28 +444,23 @@ export default function PitchCaller() {
       } else if (o === "inplay") {
         ended = "IP";
       }
+      // a plate appearance ends → log the result, reset the count, and
+      // roll to the next anonymous at-bat automatically
       if (ended) {
-        const base = {
+        return {
           ...g,
           pitches,
           pending: {},
           lastLogged: pitch.id,
           abResults: [
             ...g.abResults,
-            { ab: g.currentAb, batterId: g.currentBatterId, result: ended },
+            { ab: g.currentAb, batterId: pitch.batterId, result: ended },
           ],
           count: { b: 0, s: 0 },
+          currentAb: g.abCounter + 1,
+          abCounter: g.abCounter + 1,
+          abOver: false,
         };
-        if (autoAdvance && nextBatter) {
-          return {
-            ...base,
-            abOver: false,
-            currentBatterId: nextBatter.id,
-            currentAb: g.abCounter + 1,
-            abCounter: g.abCounter + 1,
-          };
-        }
-        return { ...base, abOver: true };
       }
       return {
         ...g,
@@ -586,9 +471,6 @@ export default function PitchCaller() {
         abOver: false,
       };
     });
-    if (autoAdvance && nextBatter) {
-      flash(`${willEnd} · UP: #${nextBatter.jersey}`);
-    }
     if (o === "inplay") {
       // ball in play — just capture where it landed
       setContactFor("last");
@@ -786,8 +668,6 @@ export default function PitchCaller() {
           const ni = (i + dir + VIEW_ORDER.length) % VIEW_ORDER.length;
           const next = VIEW_ORDER[ni];
           if (next !== cur) {
-            if (next === "batter")
-              setViewBatter((v) => v ?? game.currentBatterId);
             setToast(next.toUpperCase());
             window.setTimeout(() => setToast(null), 1100);
           }
@@ -1042,17 +922,12 @@ export default function PitchCaller() {
         {(
           [
             ["call", "CALL"],
-            ["batter", "BATTER"],
             ["game", "GAME"],
           ] as const
         ).map(([k, l]) => (
           <button
             key={k}
-            onClick={() => {
-              setTab(k);
-              if (k === "batter" && !viewBatter)
-                setViewBatter(game.currentBatterId);
-            }}
+            onClick={() => setTab(k)}
             aria-pressed={tab === k}
             className={cn(
               "press flex-1 rounded-xl border py-2.5 text-sm font-bold tracking-widest transition-colors",
@@ -1073,43 +948,8 @@ export default function PitchCaller() {
       <div className="px-1 pt-1 md:px-2">
         <section className={cn(tab !== "call" && "hidden")}>
         <div className="px-3.5 py-2">
-          {/* ── HEADS-UP: who's up + the count, oversized and unmissable.
-              Lineup management and workload are demoted so the screen has
-              one clear job per glance. ── */}
-          {/* Row 1: at bat · count · relay */}
-          <div className="mb-2.5 grid grid-cols-3 gap-2">
-            <button
-              onClick={() => setShowLineup((v) => !v)}
-              aria-expanded={showLineup}
-              aria-label="At bat — tap to open lineup"
-              className="press flex flex-col justify-center rounded-2xl border bg-card px-3 py-2.5 text-left hover:bg-accent"
-            >
-              <div className="text-[10px] tracking-widest text-muted-foreground">
-                AT BAT
-              </div>
-              <div className="flex items-baseline gap-1.5 leading-none">
-                <span className="text-3xl font-extrabold leading-none">
-                  {curBatter ? `#${curBatter.jersey}` : "—"}
-                </span>
-                {curBatter && (
-                  <span className="text-sm font-bold text-muted-foreground">
-                    {curBatter.hand}HH
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-                <span>
-                  {onDeckBatter ? `next #${onDeckBatter.jersey}` : "set lineup"}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "size-3 transition-transform",
-                    showLineup && "rotate-180"
-                  )}
-                />
-              </div>
-            </button>
-
+          {/* Row 1: count · relay */}
+          <div className="mb-2.5 grid grid-cols-2 gap-2">
             <div className="flex flex-col items-center justify-center rounded-2xl border bg-card px-2 py-2">
               <div className="text-[10px] tracking-widest text-muted-foreground">
                 COUNT
@@ -1183,48 +1023,6 @@ export default function PitchCaller() {
               )}
             </button>
           </div>
-
-          {/* lineup management: tucked away, one tap from the hero */}
-          {showLineup && (
-            <div className="animate-sheet-in mb-2.5 rounded-xl border bg-card/60 p-2">
-              <LineupPanel
-                batters={game.batters}
-                currentId={game.currentBatterId}
-                autoAdvance={game.autoAdvance}
-                onSelect={(id) => {
-                  bringUp(id);
-                  setShowLineup(false);
-                }}
-                onAdd={addLineupBatter}
-                onRemove={removeBatter}
-                onMove={moveBatter}
-                onEdit={editBatter}
-                onToggleAuto={toggleAuto}
-              />
-            </div>
-          )}
-
-          {game.abOver && (
-            <div className="mb-2.5 flex items-center gap-2 rounded-2xl border border-amber-500 bg-card px-3 py-2">
-              <div className="flex-1 text-sm font-bold tracking-wide text-amber-600 dark:text-amber-400">
-                AT-BAT ENDED
-              </div>
-              <button
-                onClick={undoLast}
-                className="press rounded-lg border px-2.5 py-2 text-xs font-bold tracking-wide text-muted-foreground hover:bg-accent"
-              >
-                UNDO
-              </button>
-              {onDeckBatter && (
-                <button
-                  onClick={() => bringUp(onDeckBatter.id)}
-                  className="press rounded-lg bg-amber-500 px-4 py-2.5 text-base font-bold text-black hover:bg-amber-400"
-                >
-                  NEXT: #{onDeckBatter.jersey}
-                </button>
-              )}
-            </div>
-          )}
 
           {/* workload */}
           <div className="mb-3 flex items-center justify-center gap-3 text-[11px] font-medium tracking-wide text-muted-foreground">
@@ -1340,7 +1138,7 @@ export default function PitchCaller() {
                   armed={
                     game.pending.type != null && game.pending.zone != null
                   }
-                  disabled={!curBatter}
+                  disabled={false}
                   onTap={() => outcome(o)}
                 />
               ))}
@@ -1360,12 +1158,21 @@ export default function PitchCaller() {
                   armed={
                     game.pending.type != null && game.pending.zone != null
                   }
-                  disabled={!curBatter}
+                  disabled={false}
                   onTap={() => outcome(o)}
                 />
               ))}
             </div>
           </div>
+
+          {/* undo — recover a mis-tap fast */}
+          <button
+            onClick={undoLast}
+            disabled={!game.pitches.length}
+            className="press mt-3 w-full rounded-2xl border py-2.5 text-xs font-bold tracking-widest text-muted-foreground hover:bg-accent disabled:opacity-30"
+          >
+            ⌫ UNDO LAST PITCH
+          </button>
 
           {/* command trend — strike% by block as a bar graph, hard-contact under */}
           {callTrend.blocks.length > 1 && (
@@ -1411,26 +1218,12 @@ export default function PitchCaller() {
         </div>
         </section>
 
-        <div>
-          <section className={cn(tab !== "batter" && "hidden")}>
-            <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
-              BATTER
-            </div>
-            <BatterView
-              game={game}
-              viewBatter={viewBatter}
-              setViewBatter={setViewBatter}
-              defs={defMap}
-            />
-          </section>
-
-          <section className={cn(tab !== "game" && "hidden")}>
-            <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
-              GAME TENDENCIES
-            </div>
-            <GameView game={game} defs={defMap} />
-          </section>
-        </div>
+        <section className={cn(tab !== "game" && "hidden")}>
+          <div className="hidden px-3.5 pt-3 text-xs font-bold tracking-widest text-muted-foreground md:block">
+            GAME TENDENCIES
+          </div>
+          <GameView game={game} defs={defMap} />
+        </section>
       </div>
 
       {showSetup && (
@@ -1572,243 +1365,6 @@ function ResultButton({
     >
       {label}
     </button>
-  );
-}
-
-/* ───────── sequence strip: the calls, in order, with swing results ───────── */
-const OUTCOME_LABEL: Record<string, string> = {
-  ball: "B",
-  strike: "S",
-  called: "ꓘ",
-  miss: "W",
-  foul: "F",
-  inplay: "IP",
-};
-
-function Strip({ pitches, defs }: { pitches: Pitch[]; defs: PitchDef[] }) {
-  if (!pitches.length) {
-    return (
-      <div className="px-0.5 py-1.5 text-sm text-muted-foreground/75">
-        no pitches yet
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {pitches.map((p) => {
-        const d = pitchDef(defs, p.type);
-        const sw = swingOf(p.outcome);
-        return (
-          <div
-            key={p.id}
-            title={`${d.name} · ${ZONES[p.zone]} · ${p.b}-${p.s} · ${p.outcome ?? ""}`}
-            className="relative flex size-16 flex-col items-center justify-center rounded-lg"
-            style={{ background: d.c, color: "#0a0c10" }}
-          >
-            {/* count + location inside; square color = pitch type */}
-            <span className="tnum font-mono text-lg font-extrabold leading-none">
-              {p.b}-{p.s}
-            </span>
-            <span className="mt-1 text-[10px] font-bold uppercase leading-none">
-              {ZONES[p.zone]}
-            </span>
-            <span className="absolute bottom-1 left-1 text-[9px] font-extrabold leading-none opacity-70">
-              {p.type}
-            </span>
-            {p.outcome && (
-              <span
-                className="absolute right-1 top-1 rounded px-1 text-[9px] font-extrabold leading-none"
-                style={{
-                  background: "rgba(10,12,16,0.82)",
-                  color:
-                    sw === "contact"
-                      ? "#ff9a9a"
-                      : sw === "miss"
-                        ? "#a9cdff"
-                        : "#e9e9e9",
-                }}
-              >
-                {OUTCOME_LABEL[p.outcome] ?? p.outcome[0].toUpperCase()}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ───────── batter view: her night by at-bat + repeat alerts ───────── */
-function BatterView({
-  game,
-  viewBatter,
-  setViewBatter,
-  defs,
-}: {
-  game: GameState;
-  viewBatter: string | null;
-  setViewBatter: (id: string | null) => void;
-  defs: PitchDef[];
-}) {
-  const id = viewBatter ?? game.currentBatterId;
-  const batter = game.batters.find((b) => b.id === id);
-  const mine = game.pitches.filter((p) => p.batterId === id);
-  const abs = [...new Set(mine.map((p) => p.ab))];
-
-  // swing profile: what she's hit vs swung through, by call
-  const combos: Record<string, { contact: number; miss: number; hard: number }> =
-    {};
-  const sprayMarkers: SprayMarker[] = [];
-  mine.forEach((p) => {
-    const sw = swingOf(p.outcome);
-    if (sw !== "contact" && sw !== "miss") return;
-    const k = `${p.type} ${ZONES[p.zone]}`;
-    combos[k] = combos[k] ?? { contact: 0, miss: 0, hard: 0 };
-    combos[k][sw]++;
-    if (p.contact) {
-      if (p.contact.quality === "hard") combos[k].hard++;
-      if (p.contact.x != null && p.contact.y != null) {
-        sprayMarkers.push({
-          x: p.contact.x,
-          y: p.contact.y,
-          quality: p.contact.quality,
-          trajectory: p.contact.trajectory,
-        });
-      }
-    }
-  });
-  const hits = Object.entries(combos)
-    .filter(([, v]) => v.contact > 0)
-    .sort((a, b) => b[1].hard - a[1].hard || b[1].contact - a[1].contact);
-  const whiffs = Object.entries(combos)
-    .filter(([, v]) => v.miss > 0 && v.miss >= v.contact)
-    .sort((a, b) => b[1].miss - a[1].miss);
-
-  return (
-    <div className="px-3.5 py-2">
-      <div className="flex gap-1.5 overflow-x-auto pb-2.5">
-        {game.batters.map((b) => {
-          const on = b.id === id;
-          return (
-            <button
-              key={b.id}
-              onClick={() => setViewBatter(b.id)}
-              className={cn(
-                "press shrink-0 rounded-2xl border px-3.5 py-2 text-[15px] font-bold",
-                on
-                  ? "border-primary bg-primary/15 text-primary"
-                  : "border-border bg-card text-card-foreground hover:bg-accent"
-              )}
-            >
-              #{b.jersey}
-            </button>
-          );
-        })}
-      </div>
-
-      {!batter ? (
-        <div className="p-2.5 text-muted-foreground/75">
-          No batter selected.
-        </div>
-      ) : (
-        <>
-          <div className="mb-1 flex items-baseline gap-2">
-            <span className="scoreboard font-mono text-3xl font-extrabold leading-none">
-              #{batter.jersey}
-            </span>
-            {batter.name && (
-              <span className="text-lg font-bold leading-none">{batter.name}</span>
-            )}
-            <span className="text-sm text-muted-foreground">
-              {batter.hand}HH · {mine.length} pitches · {abs.length} AB
-            </span>
-          </div>
-
-          {(hits.length > 0 || whiffs.length > 0) && (
-            <div className="mb-3.5 mt-2 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-red-500/60 bg-card px-3 py-2.5">
-                <div className="mb-1.5 text-[11px] font-bold tracking-widest text-red-600 dark:text-red-400">
-                  SHE&apos;S ON THESE
-                </div>
-                {hits.length ? (
-                  hits.map(([k, v]) => (
-                    <div key={k} className="py-0.5 font-mono text-xs">
-                      <span className="text-red-600 dark:text-red-400">
-                        {v.contact}×
-                      </span>{" "}
-                      {k}
-                      {v.hard > 0 && (
-                        <span className="ml-1 font-bold text-red-600 dark:text-red-400">
-                          ({v.hard} hard)
-                        </span>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="font-mono text-xs text-muted-foreground/75">
-                    no contact yet
-                  </div>
-                )}
-              </div>
-              <div className="rounded-2xl border border-blue-500/60 bg-card px-3 py-2.5">
-                <div className="mb-1.5 text-[11px] font-bold tracking-widest text-blue-600 dark:text-blue-400">
-                  SHE&apos;S MISSING
-                </div>
-                {whiffs.length ? (
-                  whiffs.map(([k, v]) => (
-                    <div key={k} className="py-0.5 font-mono text-xs">
-                      <span className="text-blue-600 dark:text-blue-400">
-                        {v.miss}×
-                      </span>{" "}
-                      {k}
-                    </div>
-                  ))
-                ) : (
-                  <div className="font-mono text-xs text-muted-foreground/75">
-                    no whiffs yet
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {sprayMarkers.length > 0 && (
-            <div className="mb-3.5 rounded-2xl border bg-card p-3">
-              <div className="mb-1 flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground">
-                <span>SPRAY CHART</span>
-                <span className="font-mono font-normal normal-case">
-                  <span className="text-red-600 dark:text-red-400">●</span> hard{" "}
-                  <span className="ml-1.5 text-amber-600 dark:text-amber-400">
-                    ○
-                  </span>{" "}
-                  weak · G/L/F
-                </span>
-              </div>
-              <FieldChart className="w-full" markers={sprayMarkers} />
-            </div>
-          )}
-
-          {abs.map((ab) => {
-            const ps = mine.filter((p) => p.ab === ab);
-            const res = game.abResults.find((r) => r.ab === ab);
-            return (
-              <div key={ab} className="mb-3.5">
-                <div className="mb-1.5 text-xs tracking-widest text-muted-foreground">
-                  AT-BAT {abs.indexOf(ab) + 1}
-                  {res && (
-                    <span className="ml-2 text-amber-600 dark:text-amber-400">
-                      → {res.result}
-                    </span>
-                  )}
-                </div>
-                <Strip pitches={ps} defs={defs} />
-              </div>
-            );
-          })}
-        </>
-      )}
-    </div>
   );
 }
 

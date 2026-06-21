@@ -144,9 +144,11 @@ export const EMPTY_GAME: GameState = {
   batters: [],
   pitches: [],
   abResults: [],
-  currentBatterId: null,
-  currentAb: 0,
-  abCounter: 0,
+  // hitters aren't tracked; one anonymous at-bat is always active as the
+  // count container, auto-advancing when a PA ends
+  currentBatterId: "anon",
+  currentAb: 1,
+  abCounter: 1,
   count: { b: 0, s: 0 },
   autoAdvance: true,
   pending: {},
